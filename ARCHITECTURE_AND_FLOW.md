@@ -12,8 +12,9 @@
 1. [SECTION 1: High-Level System Architecture Diagram](#section-1-high-level-system-architecture-diagram)
    - 1.1 Five-Layer Architectural Stack
    - 1.2 Mermaid System Topology Diagram
-   - 1.3 ASCII System Architecture Map
-   - 1.4 Detailed Layer Responsibilities & Protocols
+   - 1.3 Master End-to-End Operational & Data Flowchart (Mermaid)
+   - 1.4 ASCII System Architecture Map
+   - 1.5 Detailed Layer Responsibilities & Protocols
 2. [SECTION 2: Complete Repository Folder & File Tree](#section-2-complete-repository-folder--file-tree)
    - 2.1 Repository Directory Structure
    - 2.2 Deep File Responsibility & Boundary Matrix
@@ -174,7 +175,121 @@ flowchart TB
 
 ---
 
-### 1.3 ASCII System Architecture Map
+### 1.3 Master End-to-End Operational & Data Flowchart (Mermaid)
+
+The following master flowchart visualizes the complete operational lifecycle of an order from arrival of raw fabric and paper challan to final month-end zero-dispute settlement and Tally Prime accounting:
+
+```mermaid
+flowchart TD
+    %% Node Styling
+    classDef startNode fill:#f97316,stroke:#ea580c,stroke-width:2px,color:#fff;
+    classDef partyNode fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff;
+    classDef aiNode fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef floorNode fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff;
+    classDef calcNode fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#fff;
+    classDef dbNode fill:#475569,stroke:#334155,stroke-width:2px,color:#fff;
+    classDef alertNode fill:#e11d48,stroke:#be123c,stroke-width:2px,color:#fff;
+
+    subgraph STAGE1["STAGE 1: INWARD FABRIC & CHALLAN CAPTURE (આવક ચલણ)"]
+        Party["Merchant Client ('Party')\nSends Fabric (Taka/Meters/Pcs) + Paper Slip"]:::partyNode
+        Arrival["Goods & Handwritten Paper Challan\nArrive at Factory Floor"]
+        PhotoSnap["Supervisor ('Master') snaps photo via\nSmartphone Camera / WhatsApp Bot Tab 1"]:::startNode
+        VoiceNote["Or dictates Gujarati voice/text note\n('રાધે ક્રિએશન ડીઝાઇન ૧૦૨૪ ના ૧૨૦૦ પીસ')"]
+        
+        Party --> Arrival
+        Arrival --> PhotoSnap
+        Arrival --> VoiceNote
+    end
+
+    subgraph STAGE2["STAGE 2: MULTIMODAL AI & GUJARATI OCR PIPELINE (ai_service.py)"]
+        APICall["FastAPI: POST /api/ai/parse-challan-image\n(or POST /api/ai/process-message)"]
+        CheckKey{"API Key &\nNetwork Online?"}
+        GeminiFlash["Google Gemini 2.5 Flash API\n(google-genai SDK)"]:::aiNode
+        DemoFallback["Deterministic Local Demo Engine\n(Surat Presets: Radhe / Maruti / Shivam)"]:::aiNode
+        GujaratiTrans["Gujarati Numeral Transliteration\n(૧,૨,૩... ➔ 1,2,3...) + Unit Standardizer"]:::aiNode
+        StrictJSON["Strict JSON Extraction\n{party, challan_no, date, design, qty, unit}"]:::aiNode
+
+        PhotoSnap --> APICall
+        VoiceNote --> APICall
+        APICall --> CheckKey
+        CheckKey -->|Yes| GeminiFlash
+        CheckKey -->|No / Offline| DemoFallback
+        GeminiFlash --> GujaratiTrans
+        DemoFallback --> GujaratiTrans
+        GujaratiTrans --> StrictJSON
+    end
+
+    subgraph STAGE3["STAGE 3: HUMAN VERIFICATION & INWARD REGISTRATION (main.py)"]
+        PreviewCard["Bilingual Editable Confirmation Card\nin WhatsApp Bot Simulator (ગુજરાતી / EN)"]
+        ConfirmBtn["Master reviews data & clicks\n'કન્ફર્મ કરો (Confirm & Save)'"]:::startNode
+        DupCheck{"Duplicate Guard:\nParty + Slip No\nAlready Exists?"}
+        Reject409["409 Conflict Error:\n'આ ચલણ નંબર પહેલેથી જ નોંધાયેલ છે'"]:::alertNode
+        SaveInward["Save to Database & /uploads:\nINSERT INTO challans (Type=INWARD)"]:::dbNode
+        InitLot["Initialize Lot in Reconciliation Engine:\nStatus = RECEIVED | Balance = Q_in"]:::dbNode
+
+        StrictJSON --> PreviewCard
+        PreviewCard --> ConfirmBtn
+        ConfirmBtn --> DupCheck
+        DupCheck -->|Yes| Reject409
+        DupCheck -->|No| SaveInward
+        SaveInward --> InitLot
+    end
+
+    subgraph STAGE4["STAGE 4: FLOOR PRODUCTION & SHIFT LCD TRACKING (Tabs 2 & 3)"]
+        Machines["Embroidery Production Run\n(20-Head Embroidery Machines)"]:::floorNode
+        StitchCalc["Stitch-to-Profit Costing Engine (Tab 3):\nStitches, RPM, Heads, Overhead\n➔ Break-Even Rate + 25% Party Quote"]:::calcNode
+        ShiftChange["12-Hr Shift Change Handover\n(Day 8 AM - 8 PM / Night 8 PM - 8 AM)"]
+        LCDPhoto["Karigar / Master snaps photo of\nMachine LCD Stitch Counter (Dahao/Richpeace)"]:::startNode
+        BonusEngine["Shift Log & Bonus Calculator:\nStitches = End - Start Counter\nBonus = Excess Stitches * ₹15/10k\nAlert if Downtime > 90 min"]:::calcNode
+        SaveShift["Save to machine_shifts Table"]:::dbNode
+
+        InitLot --> Machines
+        Machines --> StitchCalc
+        Machines --> ShiftChange
+        ShiftChange --> LCDPhoto
+        LCDPhoto --> BonusEngine
+        BonusEngine --> SaveShift
+    end
+
+    subgraph STAGE5["STAGE 5: TRANCHE OUTWARD DISPATCH & KASAR DEFENSE (Tab 2)"]
+        BatchDone["Partial Batch Finished (e.g. 400 pcs / 1200 lot)"]
+        DispatchModal["Master opens Tab 2: Pending Lots (બાકી માલ)\nClicks 'જાવક નોંધો (Log Delivery)'"]:::startNode
+        InputOutward["Enter: Fresh Qty (400) + Kasar Damage (20)\n+ Signed Tempo Delivery Slip Photo"]
+        OverdeliverCheck{"Accounted > Q_in * 1.02\n(Overdelivery Guard)?"}
+        Reject400["400 Bad Request:\n'જાવક જથ્થો આવક કરતા વધારે છે'"]:::alertNode
+        CommitDispatch["FastAPI: POST /api/lots/{id}/dispatch\nINSERT INTO challans (OUTWARD)\nINSERT INTO lot_deliveries (Fresh, Kasar)"]:::dbNode
+        ReconMath["Reconciliation Engine Recomputes Balance:\nQ_pending = Q_in - (Q_fresh + Q_kasar)\n(1200 - 400 - 20 = 780 Pending)"]:::dbNode
+        WhatsAppNotice["Instant WhatsApp Dispatch Message to Party\nwith Photo Proof Link (Zero-Dispute Defense)"]:::partyNode
+
+        Machines --> BatchDone
+        BatchDone --> DispatchModal
+        DispatchModal --> InputOutward
+        InputOutward --> OverdeliverCheck
+        OverdeliverCheck -->|Yes| Reject400
+        OverdeliverCheck -->|No| CommitDispatch
+        CommitDispatch --> ReconMath
+        ReconMath --> WhatsAppNotice
+    end
+
+    subgraph STAGE6["STAGE 6: MONTH-END SETTLEMENT & TALLY PRIME EXPORT (Tab 4)"]
+        AllSettled{"Lot Balance == 0?\n(COMPLETED)"}
+        OpenLedger["Factory Owner opens Tab 4: Party Ledger\nSelects 'Radhe Creation'"]:::startNode
+        AuditTable["Dual Reconciliation Audit View:\nInward Slips ↔ Outward Slips ↔ Kasar Deductions\nEvery entry backed by Clickable Photo Thumbnail"]
+        PrintA4["1-Click Print A4 Statement (@media print):\nZero-Dispute Statement for Physical Signature"]:::alertNode
+        ExportTally["1-Click Tally Prime CSV Export:\nStandard RFC 4180 CSV for Accounting Entry"]:::alertNode
+
+        ReconMath --> AllSettled
+        AllSettled -->|Partial| DispatchModal
+        AllSettled -->|Settled| OpenLedger
+        OpenLedger --> AuditTable
+        AuditTable --> PrintA4
+        AuditTable --> ExportTally
+    end
+```
+
+---
+
+### 1.4 ASCII System Architecture Map
 
 ```text
 +====================================================================================================+
@@ -215,7 +330,7 @@ flowchart TB
 
 ---
 
-### 1.4 Detailed Layer Responsibilities & Protocols
+### 1.5 Detailed Layer Responsibilities & Protocols
 
 | Layer | Component | Tech Stack | Port / Protocol | Core Responsibilities |
 |---|---|---|---|---|
