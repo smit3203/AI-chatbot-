@@ -1,9 +1,10 @@
-# ChallanAI (EmbroideryOS) - System Architecture & End-to-End Flow Blueprint
+# ChallanAI (EmbroideryOS) - System Architecture & End-to-End Flow Blueprint (v2.0)
 
 > **File:** `ARCHITECTURE_AND_FLOW.md`  
 > **System:** ChallanAI (EmbroideryOS) - Job-Work & Lot Reconciliation Operating System  
 > **Target Clusters:** Gujarat Textile Hubs (Surat, Ahmedabad, Jetpur)  
 > **Languages Supported:** Gujarati (`ગુજરાતી`) & English (`EN`)  
+> **Specification Version:** `2.0 (Production Blueprint with Real-World Gujarat Job-Work Extensions)`  
 > **Status:** Single Source of Truth (SSOT) Architecture Blueprint
 
 ---
@@ -19,32 +20,32 @@
    - 2.1 Repository Directory Structure
    - 2.2 Deep File Responsibility & Boundary Matrix
 3. [SECTION 3: Database Entity-Relationship (ER) Schema & Mathematical Models](#section-3-database-entity-relationship-er-schema--mathematical-models)
-   - 3.1 Mermaid Entity-Relationship (ER) Diagram
-   - 3.2 SQLModel Table Definitions & Field Constraints
-   - 3.3 Core Mathematical Reconciliation & Financial Formulas
+   - 3.1 Mermaid Entity-Relationship (ER) Diagram (v2.0)
+   - 3.2 SQLModel Table Definitions & Field Constraints (v2.0)
+   - 3.3 Core Mathematical Reconciliation & Financial Formulas (v2.0)
    - 3.4 Lot Balance State Machine & Lifecycle Transitions
 4. [SECTION 4: Multimodal AI & Gujarati Vernacular Parsing Pipeline](#section-4-multimodal-ai--gujarati-vernacular-parsing-pipeline)
    - 4.1 Gemini 2.5 Flash Vision OCR Architecture (`google-genai` SDK)
    - 4.2 Gujarati Numeral Transliteration Engine
-   - 4.3 Multimodal Prompt Blueprint & Strict JSON Schema
+   - 4.3 Multimodal Prompt Blueprint & Strict JSON Schema (v2.0)
    - 4.4 Vernacular Voice/Text Intent Parsing Pipeline
    - 4.5 Machine LCD Stitch Counter Vision Parser
-   - 4.6 Deterministic Offline & Local Demo Fallback Engine
+   - 4.6 Deterministic Offline & Local Demo Fallback Engine (4 Core Presets)
 5. [SECTION 5: End-to-End User & Business Logic Flows](#section-5-end-to-end-user--business-logic-flows)
    - 5.1 Flow A: Physical Inward Challan Capture & Reconciliation
-   - 5.2 Flow B: Tranche Partial Outward Dispatch & Kasar Dispute Prevention
+   - 5.2 Flow B: Tranche Partial Outward Dispatch, Returned Raw (`કાચો પરત`) & Kasar Dispute Prevention
    - 5.3 Flow C: Machine LCD Shift Stitch Tracking & Operator Bonus Calculation
    - 5.4 Flow D: Party Ledger, Zero-Dispute A4 Settlement & Tally Prime Export
 6. [SECTION 6: API Endpoint Specification, Request/Response Contracts & Error Handling](#section-6-api-endpoint-specification-requestresponse-contracts--error-handling)
-   - 6.1 REST Endpoint Master Table
-   - 6.2 Typed Request & Response JSON Contracts
+   - 6.1 REST Endpoint Master Table (Including Dashboard & Ledger Summary)
+   - 6.2 Typed Request & Response JSON Contracts (v2.0)
    - 6.3 Validation Guards, Error Matrices & HTTP Status Codes
 
 ---
 
 # SECTION 1: HIGH-LEVEL SYSTEM ARCHITECTURE DIAGRAM
 
-ChallanAI (EmbroideryOS) is architected specifically for the rough, fast-paced environment of textile embroidery job-work factories. Floor operators ("Karigars") and supervisors ("Masters") need zero-friction capture (camera photos, WhatsApp voice/text in Gujarati), while factory owners ("Sethiayas") need mathematical precision to eliminate month-end "Kasar" (shortage/damage deduction) disputes with merchant clients ("Parties").
+ChallanAI (EmbroideryOS) is architected specifically for the rough, fast-paced environment of textile embroidery job-work factories. Floor operators ("Karigars") and supervisors ("Masters") need zero-friction capture (camera photos, WhatsApp voice/text in Gujarati), while factory owners ("Sethiayas") need mathematical precision to eliminate month-end "Kasar" (shortage/damage deduction) disputes and track unembroidered returned raw fabric (`કાચો માલ પરત`) with merchant clients ("Parties").
 
 ### 1.1 Five-Layer Architectural Stack
 
@@ -66,10 +67,10 @@ ChallanAI (EmbroideryOS) is architected specifically for the rough, fast-paced e
 ┌──────────────────────────────────────▼───────────────────────────────────────┐
 │ 3. API & BUSINESS LOGIC LAYER (FastAPI + SQLModel, Port 8000)                │
 │    • Duplicate Challan Guard & Cross-Party Collision Check                   │
-│    • Lot Reconciliation Engine (Live Balances, Kasar Shortage Allocator)     │
+│    • v2.0 Lot Reconciliation Engine (Fresh, Returned Raw, Kasar, Fent)       │
 │    • Stitch-to-Profit Costing Engine (RPM, Heads, Thread, Margin)           │
-│    • Karigar Shift Bonus & Machine Efficiency Downtime Analyzer              │
-│    • Tally Prime CSV & WhatsApp Udhari Reconciliation Generator              │
+│    • Karigar Shift Bonus & Persisted Machine Efficiency Downtime Analyzer   │
+│    • Tally Prime CSV & WhatsApp Udhari Reminder URL Generator                │
 └──────────────────┬───────────────────────────────────────────┬───────────────┘
                    │ gRPC / REST (google-genai)                │ SQL (psycopg3)
 ┌──────────────────▼──────────────────────────┐ ┌──────────────▼───────────────┐
@@ -79,7 +80,8 @@ ChallanAI (EmbroideryOS) is architected specifically for the rough, fast-paced e
 │    • Vernacular Audio/Text Intent Extractor │ │ • Auto SQLite Fallback       │
 │    • Machine LCD Counter OCR                │ │   (Local zero-config dev)    │
 │    • Deterministic Offline Demo Fallback    │ │ • Static /uploads Directory  │
-│      (Hardcoded Gujarat sample presets)     │ │   (Challan & LCD photos)     │
+│      (4 Surat Presets: Inward, Outward,     │ │   (Challan photos, design    │
+│       Duplicate Guard, LCD Counter)         │ │    samples, LCD photos)      │
 └─────────────────────────────────────────────┘ └──────────────────────────────┘
 ```
 
@@ -91,7 +93,7 @@ ChallanAI (EmbroideryOS) is architected specifically for the rough, fast-paced e
 flowchart TB
     subgraph Layer1["1. User & Shop-Floor Layer"]
         User["Factory Owner / Floor Master / Karigar"]
-        InputCam["Smartphone Camera (Slip / LCD Photo)"]
+        InputCam["Smartphone Camera (Slip / LCD Photo / Design Sample)"]
         InputChat["WhatsApp Audio / Text (Gujarati / English)"]
         PWA["Bilingual Web PWA (ગુજરાતી / EN)"]
         User --> InputCam
@@ -101,10 +103,10 @@ flowchart TB
 
     subgraph Layer2["2. Frontend Presentation Layer (Next.js 14 - Port 3000)"]
         AppRouter["Next.js App Router (TypeScript + Tailwind CSS)"]
-        Tab1["Tab 1: 💬 WhatsApp AI Bot Simulator"]
-        Tab2["Tab 2: 📦 બાકી માલ (Pending Floor Stock)"]
-        Tab3["Tab 3: 🧮 સ્ટીચ ભાવ & શિફ્ટ લોગ (Stitch & Shift)"]
-        Tab4["Tab 4: 📄 પાર્ટી ખાતું (Photo-Backed Ledger)"]
+        Tab1["Tab 1: 💬 WhatsApp AI Bot Simulator\n(Preset Quick-Tests, OCR Cards)"]
+        Tab2["Tab 2: 📦 બાકી માલ (Pending Floor Stock)\n(Inward vs Fresh vs Returned Raw vs Kasar)"]
+        Tab3["Tab 3: 🧮 સ્ટીચ ભાવ & શિફ્ટ લોગ (Stitch & Shift)\n(Cost Calculator, Day/Night LCD Bonus)"]
+        Tab4["Tab 4: 📄 પાર્ટી ખાતું (Photo-Backed Ledger)\n(Billing Summary, WhatsApp Udhari Link)"]
         PrintEngine["@media print A4 Engine (Zero-Dispute Slip)"]
         OfflineCache["Client-Side Offline Data Cache (Zustand/Local)"]
         
@@ -123,13 +125,13 @@ flowchart TB
         RouterLots["/api/lots (Reconciliation & Dispatch Router)"]
         RouterAI["/api/ai (Vision OCR & NLP Router)"]
         RouterCalc["/api/calculator & /api/shifts"]
-        RouterLedger["/api/ledger & /api/parties"]
+        RouterLedger["/api/ledger & /api/dashboard & /api/parties"]
 
-        DupGuard["Duplicate Challan Guard (Party + Number)"]
-        ReconEngine["Lot Reconciliation Engine (Qin - Qout - Qkasar)"]
-        CostEngine["Stitch-to-Profit Costing Engine"]
-        BonusEngine["Karigar Shift Bonus & LCD Downtime Calc"]
-        TallyGen["Tally Prime CSV & WhatsApp Export Gen"]
+        DupGuard["Duplicate Challan Guard (Party + Slip No Check)"]
+        ReconEngine["v2.0 Lot Reconciliation Engine\n(Q_in - Q_fresh - Q_raw_ret - Q_kasar - Q_fent)"]
+        CostEngine["Stitch-to-Profit Costing Engine (Break-Even & Quote)"]
+        BonusEngine["Karigar Shift Bonus & Downtime Persister"]
+        TallyGen["Tally Prime CSV & WhatsApp Udhari Link Gen"]
 
         FastAPI --> RouterChallan
         FastAPI --> RouterLots
@@ -149,7 +151,7 @@ flowchart TB
         NumParser["Gujarati Numeral Transliteration (૧,૨,૩ -> 1,2,3)"]
         VernacularNLP["Gujarati/Hindi Intent & Entity Extractor"]
         LCDReader["7-Segment / LCD Stitch Counter OCR"]
-        DemoFallback["Deterministic Local Fallback Engine (Surat Presets)"]
+        DemoFallback["Deterministic Local Fallback Engine\n(4 Surat Demo Presets)"]
 
         RouterAI --> GeminiFlash
         GeminiFlash --> NumParser
@@ -161,7 +163,7 @@ flowchart TB
     subgraph Layer5["5. Database & Storage Layer (database.py)"]
         NeonDB[("Neon Serverless PostgreSQL (Pooled, SSL Require)")]
         SQLiteDB[("Local SQLite Fallback (embroidery_os.db)")]
-        UploadsFS[("Local File System: /uploads (Challans & Designs)")]
+        UploadsFS[("Local File System: /uploads (Challans, Designs, LCDs)")]
 
         DupGuard & ReconEngine & CostEngine & BonusEngine & TallyGen --> NeonDB
         NeonDB -.->|Fallback if no DATABASE_URL| SQLiteDB
@@ -194,7 +196,7 @@ flowchart TD
         Party["Merchant Client ('Party')\nSends Fabric (Taka/Meters/Pcs) + Paper Slip"]:::partyNode
         Arrival["Goods & Handwritten Paper Challan\nArrive at Factory Floor"]
         PhotoSnap["Supervisor ('Master') snaps photo via\nSmartphone Camera / WhatsApp Bot Tab 1"]:::startNode
-        VoiceNote["Or dictates Gujarati voice/text note\n('રાધે ક્રિએશન ડીઝાઇન ૧૦૨૪ ના ૧૨૦૦ પીસ')"]
+        VoiceNote["Or dictates Gujarati voice/text note\n('રાધે ક્રિએશન ડીઝાઇન ૧૦૨૪ ના ૧૨૦૦ પીસ, ભાવ ૪૨')"]
         
         Party --> Arrival
         Arrival --> PhotoSnap
@@ -205,9 +207,9 @@ flowchart TD
         APICall["FastAPI: POST /api/ai/parse-challan-image\n(or POST /api/ai/process-message)"]
         CheckKey{"API Key &\nNetwork Online?"}
         GeminiFlash["Google Gemini 2.5 Flash API\n(google-genai SDK)"]:::aiNode
-        DemoFallback["Deterministic Local Demo Engine\n(Surat Presets: Radhe / Maruti / Shivam)"]:::aiNode
+        DemoFallback["Deterministic Local Demo Engine\n(4 Presets: Inward, Outward, Dup Guard, LCD)"]:::aiNode
         GujaratiTrans["Gujarati Numeral Transliteration\n(૧,૨,૩... ➔ 1,2,3...) + Unit Standardizer"]:::aiNode
-        StrictJSON["Strict JSON Extraction\n{party, challan_no, date, design, qty, unit}"]:::aiNode
+        StrictJSON["Strict JSON Extraction\n{party, challan_no, date, design, punch, rate, qty, unit}"]:::aiNode
 
         PhotoSnap --> APICall
         VoiceNote --> APICall
@@ -224,7 +226,7 @@ flowchart TD
         ConfirmBtn["Master reviews data & clicks\n'કન્ફર્મ કરો (Confirm & Save)'"]:::startNode
         DupCheck{"Duplicate Guard:\nParty + Slip No\nAlready Exists?"}
         Reject409["409 Conflict Error:\n'આ ચલણ નંબર પહેલેથી જ નોંધાયેલ છે'"]:::alertNode
-        SaveInward["Save to Database & /uploads:\nINSERT INTO challans (Type=INWARD)"]:::dbNode
+        SaveInward["Save to Database & /uploads:\nINSERT INTO challans (Type=INWARD,\nRate, Punch Code, Stitches)"]:::dbNode
         InitLot["Initialize Lot in Reconciliation Engine:\nStatus = RECEIVED | Balance = Q_in"]:::dbNode
 
         StrictJSON --> PreviewCard
@@ -236,12 +238,12 @@ flowchart TD
     end
 
     subgraph STAGE4["STAGE 4: FLOOR PRODUCTION & SHIFT LCD TRACKING (Tabs 2 & 3)"]
-        Machines["Embroidery Production Run\n(20-Head Embroidery Machines)"]:::floorNode
+        Machines["Embroidery Production Run\n(20-Head Embroidery Machines, Matching Punch Code)"]:::floorNode
         StitchCalc["Stitch-to-Profit Costing Engine (Tab 3):\nStitches, RPM, Heads, Overhead\n➔ Break-Even Rate + 25% Party Quote"]:::calcNode
         ShiftChange["12-Hr Shift Change Handover\n(Day 8 AM - 8 PM / Night 8 PM - 8 AM)"]
         LCDPhoto["Karigar / Master snaps photo of\nMachine LCD Stitch Counter (Dahao/Richpeace)"]:::startNode
-        BonusEngine["Shift Log & Bonus Calculator:\nStitches = End - Start Counter\nBonus = Excess Stitches * ₹15/10k\nAlert if Downtime > 90 min"]:::calcNode
-        SaveShift["Save to machine_shifts Table"]:::dbNode
+        BonusEngine["Shift Log & Bonus Calculator:\nStitches = End - Start Counter\nBonus = Excess Stitches * ₹15/10k\nAlert if Downtime > 90 min or Eff < 70%"]:::calcNode
+        SaveShift["Persist to machine_shifts Table:\n(target_stitches, efficiency_pct, bonus_inr, alert)"]:::dbNode
 
         InitLot --> Machines
         Machines --> StitchCalc
@@ -251,14 +253,14 @@ flowchart TD
         BonusEngine --> SaveShift
     end
 
-    subgraph STAGE5["STAGE 5: TRANCHE OUTWARD DISPATCH & KASAR DEFENSE (Tab 2)"]
-        BatchDone["Partial Batch Finished (e.g. 400 pcs / 1200 lot)"]
+    subgraph STAGE5["STAGE 5: TRANCHE OUTWARD DISPATCH & KASAR / RAW RETURN DEFENSE (Tab 2)"]
+        BatchDone["Partial Batch Finished (e.g. 400 pcs fresh + 50 raw return)"]
         DispatchModal["Master opens Tab 2: Pending Lots (બાકી માલ)\nClicks 'જાવક નોંધો (Log Delivery)'"]:::startNode
-        InputOutward["Enter: Fresh Qty (400) + Kasar Damage (20)\n+ Signed Tempo Delivery Slip Photo"]
-        OverdeliverCheck{"Accounted > Q_in * 1.02\n(Overdelivery Guard)?"}
+        InputOutward["Enter: Fresh Qty (400) + Returned Raw (50)\n+ Kasar Damage (20) + Fent (10)\n+ Signed Tempo Delivery Slip Photo"]
+        OverdeliverCheck{"Accounted > Q_in * 1.02\n(Overdelivery Guard v2.0)?"}
         Reject400["400 Bad Request:\n'જાવક જથ્થો આવક કરતા વધારે છે'"]:::alertNode
-        CommitDispatch["FastAPI: POST /api/lots/{id}/dispatch\nINSERT INTO challans (OUTWARD)\nINSERT INTO lot_deliveries (Fresh, Kasar)"]:::dbNode
-        ReconMath["Reconciliation Engine Recomputes Balance:\nQ_pending = Q_in - (Q_fresh + Q_kasar)\n(1200 - 400 - 20 = 780 Pending)"]:::dbNode
+        CommitDispatch["FastAPI: POST /api/lots/{id}/dispatch\nINSERT INTO challans (OUTWARD)\nINSERT INTO lot_deliveries (Fresh, Raw Ret, Kasar, Fent)"]:::dbNode
+        ReconMath["Reconciliation Engine Recomputes Balance:\nQ_pending = Q_in - (Q_fresh + Q_raw_ret + Q_kasar + Q_fent)\nNet Billable Qty = Q_fresh (Only embroidered items charged!)"]:::dbNode
         WhatsAppNotice["Instant WhatsApp Dispatch Message to Party\nwith Photo Proof Link (Zero-Dispute Defense)"]:::partyNode
 
         Machines --> BatchDone
@@ -274,7 +276,8 @@ flowchart TD
     subgraph STAGE6["STAGE 6: MONTH-END SETTLEMENT & TALLY PRIME EXPORT (Tab 4)"]
         AllSettled{"Lot Balance == 0?\n(COMPLETED)"}
         OpenLedger["Factory Owner opens Tab 4: Party Ledger\nSelects 'Radhe Creation'"]:::startNode
-        AuditTable["Dual Reconciliation Audit View:\nInward Slips ↔ Outward Slips ↔ Kasar Deductions\nEvery entry backed by Clickable Photo Thumbnail"]
+        AuditTable["Dual Reconciliation Audit View:\nInward Slips ↔ Fresh Outwards ↔ Returned Raw ↔ Kasar\nBillable Amount = Q_fresh * agreed_rate"]
+        WhatsAppUdhari["1-Click WhatsApp Udhari Reminder Link:\nPre-filled polite Gujarati payment reminder\nwith Billable ₹ and Photo Proof link"]:::partyNode
         PrintA4["1-Click Print A4 Statement (@media print):\nZero-Dispute Statement for Physical Signature"]:::alertNode
         ExportTally["1-Click Tally Prime CSV Export:\nStandard RFC 4180 CSV for Accounting Entry"]:::alertNode
 
@@ -282,6 +285,7 @@ flowchart TD
         AllSettled -->|Partial| DispatchModal
         AllSettled -->|Settled| OpenLedger
         OpenLedger --> AuditTable
+        AuditTable --> WhatsAppUdhari
         AuditTable --> PrintA4
         AuditTable --> ExportTally
     end
@@ -293,28 +297,28 @@ flowchart TD
 
 ```text
 +====================================================================================================+
-|                                    CHALLAN AI (EMBROIDERY OS)                                      |
+|                                    CHALLAN AI (EMBROIDERY OS) v2.0                                 |
 +====================================================================================================+
  [SHOP-FLOOR]  Smartphone Camera / WhatsApp Voice-Text / Touch Screen PWA (Gujarati / English)
       │
       ▼ (HTTP/2, JSON, Multipart, Port 3000)
 +────────────────────────────────────────────────────────────────────────────────────────────────────+
 | FRONTEND: Next.js 14 (App Router) + Tailwind CSS + Lucide Icons                                   |
-|   ├── Tab 1: WhatsApp AI Bot Simulator (Chat bubbles, Quick sample tests, Camera OCR preview)      |
-|   ├── Tab 2: Pending Lots / બાકી માલ (Progress gauges: Inward vs Outward vs Kasar, 1-Click Dispatch)|
-|   ├── Tab 3: Stitch Calculator & Shift Log (Cost/Piece, 25% Margin Quote, LCD Day/Night Tracker)   |
-|   ├── Tab 4: Party Ledger & Proofs (Searchable statement, photo modal, A4 print, Tally CSV)        |
+|   ├── Tab 1: WhatsApp AI Bot Simulator (Chat bubbles, 4 Demo presets, Camera OCR preview)         |
+|   ├── Tab 2: Pending Lots / બાકી માલ (Progress: Inward vs Fresh vs Raw Return vs Kasar vs Fent)   |
+|   ├── Tab 3: Stitch Calculator & Shift Log (Cost/Piece, 25% Quote, LCD Counter, Persisted Bonus)   |
+|   ├── Tab 4: Party Ledger & Proofs (Billable amounts, WhatsApp Udhari Link, A4 print, Tally CSV)   |
 |   └── Global: Gujarati / English instant toggle, Offline local store, @media print CSS rules       |
 +────────────────────────────────────────────────────────────────────────────────────────────────────+
       │
       ▼ (REST API: /api/*, Port 8000, CORS enabled)
 +────────────────────────────────────────────────────────────────────────────────────────────────────+
 | BACKEND: FastAPI + SQLModel + Pydantic v2 Validation                                               |
-|   ├── Security & Validation: Duplicate Challan Guard, Overdelivery Guard, Unit Normalizer          |
-|   ├── Reconciliation Engine: Lot balance = Inward - (Fresh Delivered + Kasar Defect)               |
-|   ├── Shift Costing Engine: (Stitches / (RPM * Eff)) * 720m * Heads -> Cost per Piece + Margin     |
-|   ├── Operator Engine: LCD stitch differential - Target stitches -> Karigar incentive bonus        |
-|   └── Export Engine: Tally Prime CSV generation + WhatsApp reconciliation text formatter           |
+|   ├── Security & Validation: Duplicate Challan Guard (409), Overdelivery Guard v2.0 (400)          |
+|   ├── v2.0 Reconciliation Engine: Q_pending = Inward - (Fresh + Raw Return + Kasar + Fent)         |
+|   ├── Stitch Costing Engine: (Stitches / (RPM * Eff)) * 720m * Heads -> Cost per Piece + Margin     |
+|   ├── Shift Engine: Computes & stores target_stitches, efficiency_pct, bonus_inr, alert boolean   |
+|   └── Export Engine: Tally Prime CSV generation + WhatsApp Udhari reminder link formatter          |
 +───────────────────────────┬────────────────────────────────────────┬───────────────────────────────+
                             │                                        │
                             ▼ (google-genai SDK)                     ▼ (psycopg3 / sqlite3)
@@ -323,8 +327,8 @@ flowchart TD
 |   ├── Gemini 2.5 Flash Multimodal OCR       |  |   ├── Primary: Neon Serverless PostgreSQL         |
 |   ├── Gujarati Numeral Parser (૧,૨,૩->1,2,3)|  |       (Connection Pool, SSL, Indexing)            |
 |   ├── Vernacular Intent & Entity Router     |  |   ├── Fallback: Local SQLite (zero-config dev)    |
-|   ├── Machine LCD 7-Segment Screen Reader   |  |   └── File Storage: /uploads (Challan photos,     |
-|   └── Deterministic Offline Demo Presets    |  |       LCD counter images, design previews)        |
+|   ├── Machine LCD 7-Segment Screen Reader   |  |   └── File Storage: /uploads (Challans,           |
+|   └── 4 Core Deterministic Presets          |  |       sample designs, LCD screen photos)          |
 +─────────────────────────────────────────────+  +───────────────────────────────────────────────────+
 ```
 
@@ -334,10 +338,10 @@ flowchart TD
 
 | Layer | Component | Tech Stack | Port / Protocol | Core Responsibilities |
 |---|---|---|---|---|
-| **Layer 1** | User & Shop-Floor | Mobile Browser, Camera, WhatsApp | HTTPS / WSS | Capture paper slips, dictate audio/text notes in Gujarati, view live lot statuses. |
-| **Layer 2** | Web Application | Next.js 14, React 18, TypeScript, Tailwind CSS | Port 3000 / HTTP | UI presentation, 4-tab mobile layout, bilingual language dictionary, photo preview modals, A4 print formatting. |
-| **Layer 3** | REST API & Core Engine | FastAPI, SQLModel, Pydantic v2, Uvicorn | Port 8000 / HTTP | Business rules, duplicate slip prevention, lot math reconciliation, stitch pricing, shift bonus calculation, Tally export. |
-| **Layer 4** | Multimodal AI Engine | Gemini 2.5 Flash (`google-genai`), PIL | HTTPS / REST | Visual OCR of handwritten Gujarati slips, transliteration of regional digits, vernacular intent parsing, LCD counter reading. |
+| **Layer 1** | User & Shop-Floor | Mobile Browser, Camera, WhatsApp | HTTPS / WSS | Capture paper slips, dictate audio/text notes in Gujarati, view live lot statuses, log returned raw fabric. |
+| **Layer 2** | Web Application | Next.js 14, React 18, TypeScript, Tailwind CSS | Port 3000 / HTTP | UI presentation, 4-tab mobile layout, bilingual language dictionary, photo preview modals, A4 print formatting, 1-click WhatsApp Udhari trigger. |
+| **Layer 3** | REST API & Core Engine | FastAPI, SQLModel, Pydantic v2, Uvicorn | Port 8000 / HTTP | Business rules, duplicate slip prevention, v2.0 lot reconciliation, stitch pricing, shift bonus calculation, dashboard KPIs, Tally export. |
+| **Layer 4** | Multimodal AI Engine | Gemini 2.5 Flash (`google-genai`), PIL | HTTPS / REST | Visual OCR of handwritten Gujarati slips with punch codes and rates, transliteration of regional digits, vernacular intent parsing, LCD counter reading. |
 | **Layer 5** | Database & Storage | Neon PostgreSQL, SQLite, Static FS | TCP 5432 / Local Disk | Relational persistence, connection pooling, ACID transaction guarantees, static file serving under `/uploads`. |
 
 ---
@@ -349,14 +353,14 @@ flowchart TD
 ```text
 c:\Users\NAWAB\ai-chatbot\AI-chatbot-\
 ├── PROJECT_CONTEXT.md          # Domain rules, business logic & mathematical formulas
-├── ARCHITECTURE_AND_FLOW.md    # This system architecture & end-to-end flow blueprint
+├── ARCHITECTURE_AND_FLOW.md    # This system architecture & end-to-end flow blueprint (v2.0)
 ├── README.md                   # Repository overview, quick-start & deployment instructions
 ├── backend/
 │   ├── .env.example            # DATABASE_URL (Neon Postgres) & GEMINI_API_KEY environment template
 │   ├── requirements.txt        # Production Python dependencies (FastAPI, SQLModel, google-genai)
 │   ├── database.py             # Neon PostgreSQL engine, pooling & automatic SQLite fallback
 │   ├── models.py               # SQLModel entities: Party, Challan, LotDelivery, MachineShift, RateQuote
-│   ├── ai_service.py           # Gemini 2.5 Flash OCR, Gujarati parser & deterministic demo presets
+│   ├── ai_service.py           # Gemini 2.5 Flash OCR, Gujarati parser & 4 deterministic demo presets
 │   ├── seed.py                 # Realistic Gujarat embroidery seed data (Parties, Lots, Tranches, Shifts)
 │   ├── main.py                 # FastAPI application, CORS, static uploads & all REST route handlers
 │   └── uploads/                # Persistent storage for uploaded paper challan & LCD counter photos
@@ -380,7 +384,7 @@ c:\Users\NAWAB\ai-chatbot\AI-chatbot-\
 
 #### A. Root Configuration & Knowledge Files
 - **`PROJECT_CONTEXT.md`**: The domain Bible. Details the Job-Work manufacturing model, raw fabric zero-ownership constraints, tranche deliveries, Kasar shortage mechanics, stitch-to-profit equations, and SQL schema blueprints.
-- **`ARCHITECTURE_AND_FLOW.md`**: This document. Authoritative technical specification for all 5 layers, database relationships, AI OCR pipelines, user journeys, and REST API contracts.
+- **`ARCHITECTURE_AND_FLOW.md`**: This document (v2.0). Authoritative technical specification for all 5 layers, database relationships, AI OCR pipelines, user journeys, and REST API contracts.
 - **`README.md`**: Developer and operator onboarding guide. Explains prerequisites, 1-command startup for both backend and frontend, and testing instructions.
 
 #### B. Backend Layer (`/backend`)
@@ -396,33 +400,46 @@ c:\Users\NAWAB\ai-chatbot\AI-chatbot-\
   * Configures connection pooling (`pool_size=10`, `max_overflow=20`, `pool_recycle=300`) for Neon serverless compatibility.
   * Exposes `get_session()` dependency for FastAPI routes.
   * Exposes `init_db()` to automatically create tables on startup.
-- **`models.py`**:
+- **`models.py` (v2.0)**:
   * Defines SQLModel tables with relational foreign keys:
     1. `Party`: Merchant client profiles (Name, Phone, City, Active lots).
-    2. `Challan`: Physical paper challans (Type: `INWARD` or `OUTWARD`, Challan No, Design No, Fabric, Qty, Unit, Photo URL).
-    3. `LotDelivery`: Junction table linking outward deliveries back to the original inward lot with separate tracking for `fresh_quantity` and `kasar_quantity`.
-    4. `MachineShift`: Day/Night operator shift logs, LCD counter numbers, total stitches, RPM, and downtime.
+    2. `Challan`: Physical paper challans with v2.0 fields:
+       - `factory_punch_number`: Internal `.DST` machine code (e.g., `SK-45`).
+       - `agreed_rate`: Agreed job-work rate in INR (e.g., `₹42.0`).
+       - `stitches_per_piece`: Stitch count (e.g., `28000`).
+       - `design_photo_url`: Sample image path.
+    3. `LotDelivery`: Junction table with v2.0 fields:
+       - `fresh_quantity`: Finished embroidered pieces (billable).
+       - `returned_raw_quantity`: Unprocessed raw fabric returned to party (unbillable floor reduction).
+       - `kasar_quantity`: Defective / shortage pieces accepted by party.
+       - `fent_quantity`: Leftover roll cut-pieces returned.
+    4. `MachineShift`: Day/Night operator shift logs with v2.0 persisted analytics:
+       - `target_stitches`: Shift target (default `400000`).
+       - `efficiency_pct`: Actual output efficiency percentage.
+       - `bonus_earned_inr`: Karigar bonus in INR.
+       - `is_low_efficiency_alert`: Flag for efficiency < 70% or downtime > 90 mins.
     5. `RateQuote`: Stitch pricing records, material consumption, break-even cost, and quoted rate.
   * Defines Python Enums: `ChallanType`, `UnitType`, `ShiftType`, `MaterialType`, `LotStatus`.
-- **`ai_service.py`**:
+- **`ai_service.py` (v2.0)**:
   * Initializes the Google Gemini 2.5 Flash client via `google-genai` SDK (`genai.Client(api_key=...)`).
-  * `parse_challan_image(file_bytes, filename)`: Multimodal visual OCR extracting Party, Challan No, Date, Design No, Qty, Unit, and Gujarati handwritten notes.
+  * `parse_challan_image(file_bytes, filename)`: Multimodal visual OCR extracting Party, Challan No, Date, Design No, Factory Punch Code, Agreed Rate, Stitches, Qty, Unit, and Gujarati handwritten notes.
   * `transliterate_gujarati_numerals(text)`: Converts Gujarati numerals (`૧, ૨, ૩...`) to English Arabic digits (`1, 2, 3...`).
   * `process_vernacular_message(text_or_audio)`: Classifies user intent (Inward, Outward dispatch, Pending balance query, Stitch quote) and extracts structured parameters.
   * `parse_machine_lcd(file_bytes)`: Extracts numeric start/end stitch counters from machine LCD photos.
-  * `get_deterministic_fallback(filename_or_preset)`: Provides realistic mock outputs for 4 Surat presets when offline or running without a Gemini key.
-- **`seed.py`**:
-  * Populates the database with realistic Surat/Ahmedabad textile hub records:
-    * 4 Parties: Radhe Creation (Surat), Maruti Embroidery (Ahmedabad), Shivam Textiles (Jetpur), Khodiyar Fashion (Surat).
-    * 6 Inward Lots: Designs 1024, 402, 8820 on Georgette, Organza, Silk, Rayon.
-    * 8 Outward Tranche Deliveries demonstrating partial completion and Kasar shortage deductions.
-    * 4 Machine Shifts with realistic Day/Night stitch counters on 20-head embroidery machines.
-- **`main.py`**:
+  * `get_deterministic_fallback(filename_or_preset)`: Provides realistic mock outputs for 4 Surat presets:
+    1. `preset_radhe_inward.jpg` (1200 PCS Inward, `RC-1048`, `D-1024`, Punch `SK-45`, Rate `₹42`)
+    2. `preset_maruti_outward.jpg` (400 Fresh PCS, 50 Returned Raw PCS, 20 Kasar PCS, 10 Fent PCS)
+    3. `preset_duplicate_guard.jpg` (Triggers `409 Conflict` duplicate guard on `RC-1048`)
+    4. `preset_dahao_lcd.jpg` (445k stitches vs 400k target -> 111.2% eff, +₹67.50 Karigar Bonus)
+- **`seed.py` (v2.0)**:
+  * Populates the database with realistic Surat/Ahmedabad textile hub records including factory punch codes, agreed rates, returned raw fabric, fent quantities, and computed shift bonuses.
+- **`main.py` (v2.0)**:
   * FastAPI entry point configuring CORS, error handling middleware, and `/uploads` static file mount (`StaticFiles(directory="uploads")`).
+  * Implements `GET /api/dashboard/summary` for top-level operational KPIs.
+  * Implements `GET /api/ledger/{party_id}` with billable amount and WhatsApp Udhari link generation.
   * Registers all REST endpoints defined in Section 6.
-  * Implements `startup` lifecycle hook to run `init_db()` and verify directory permissions.
 - **`uploads/`**:
-  * Directory for storing uploaded slip photos, signed proof photos, and machine LCD counter captures.
+  * Directory for storing uploaded slip photos, signed proof photos, sample designs, and machine LCD counter captures.
 
 #### C. Frontend Layer (`/frontend`)
 - **`package.json`**: Configures Next.js 14, React 18, TypeScript, Tailwind CSS, Lucide React icons, and utility packages.
@@ -431,27 +448,27 @@ c:\Users\NAWAB\ai-chatbot\AI-chatbot-\
 - **`src/lib/api.ts`**:
   * Axios/Fetch client wrapper pointing to backend (`http://localhost:8000`).
   * Includes resilient fallback logic: if backend is unreachable, loads pre-bundled offline mock data so users can test the UI immediately.
-  * Type definitions for `Party`, `Challan`, `PendingLot`, `ShiftLog`, `RateQuote`, `AIResponse`.
+  * Type definitions for `Party`, `Challan`, `PendingLot`, `ShiftLog`, `RateQuote`, `AIResponse`, `DashboardSummary`.
 - **`src/lib/translations.ts`**:
   * Full bidirectional translation dictionary (`gu` <-> `en`).
-  * Covers navigation tabs, field labels, status badges, action buttons, alert banners, and WhatsApp bot dialogue.
+  * Covers navigation tabs, field labels, status badges, action buttons, alert banners, returned raw terms (`કાચો માલ પરત`), leftover fent (`ફેંટ`), and WhatsApp bot dialogue.
 - **`src/app/layout.tsx`**:
   * Root HTML shell. Configures viewport meta tags for mobile PWA behavior, font declarations, and print styles.
 - **`src/app/globals.css`**:
   * Tailwind directives, custom glassmorphism styles, scrollbar styling, and `@media print` rules for clean A4 printing (hides headers/tabs, prints clean ledger borders).
 - **`src/app/page.tsx`**:
-  * Primary application orchestrator. Houses the top navigation bar with the Gujarati/English toggle and backend health indicator.
+  * Primary application orchestrator. Houses top navigation bar with the Gujarati/English toggle, backend health indicator, and dashboard summary ribbon.
   * Renders the 4 core views:
-    1. **Tab 1: WhatsApp AI Bot Simulator** (Chat feed, file upload, quick-test buttons, AI confirmation dialog).
-    2. **Tab 2: Pending Floor Stock** (Party-grouped lot cards, visual completion gauges, 1-click partial delivery modal).
-    3. **Tab 3: Stitch Costing & Shift Tracker** (Interactive sliders, cost breakdown cards, Day/Night LCD logger).
-    4. **Tab 4: Party Ledger & Proofs** (Party selector, Inward vs Outward dual audit table, photo thumbnail viewer, A4 print button, Tally CSV export).
+    1. **Tab 1: WhatsApp AI Bot Simulator** (Chat feed, file upload, 4 quick-test preset buttons, AI confirmation dialog).
+    2. **Tab 2: Pending Floor Stock** (Party-grouped lot cards, multi-segment completion gauges, 1-click partial delivery modal supporting Fresh, Returned Raw, Kasar, and Fent).
+    3. **Tab 3: Stitch Costing & Shift Tracker** (Interactive sliders, cost breakdown cards, Day/Night LCD logger displaying persisted bonus & low-efficiency alerts).
+    4. **Tab 4: Party Ledger & Proofs** (Party selector, Inward vs Outward dual audit table with photo thumbnail viewer, billable rupee totals, 1-click WhatsApp Udhari link, A4 print button, Tally CSV export).
 
 ---
 
 # SECTION 3: DATABASE ENTITY-RELATIONSHIP (ER) SCHEMA & MATHEMATICAL MODELS
 
-### 3.1 Mermaid Entity-Relationship (ER) Diagram
+### 3.1 Mermaid Entity-Relationship (ER) Diagram (v2.0)
 
 ```mermaid
 erDiagram
@@ -474,7 +491,11 @@ erDiagram
         uuid party_id FK "Indexed"
         string challan_number "Indexed (Slip No)"
         date challan_date "Slip Date"
-        string design_number "Indexed"
+        string design_number "Indexed (Party's design code)"
+        string factory_punch_number "Internal machine .DST code (e.g. SK-45)"
+        float agreed_rate "Agreed job-work rate in INR (e.g. 42.0)"
+        int stitches_per_piece "Stitch count (e.g. 28000)"
+        string design_photo_url "Nullable sample photo path"
         string fabric_type "e.g. Georgette, Silk"
         float total_quantity "Pieces / Meters / Takas"
         string unit "PCS | MTR | TAKA"
@@ -487,8 +508,10 @@ erDiagram
         uuid id PK
         uuid inward_challan_id FK "Original Inward Lot"
         uuid outward_challan_id FK "Outward Tranche Slip"
-        float fresh_quantity "Delivered Fresh Pieces/Mtrs"
-        float kasar_quantity "Damaged / Shortage Pieces"
+        float fresh_quantity "Finished Embroidered Pieces (Billable)"
+        float returned_raw_quantity "Unprocessed Raw Returned (Unbillable)"
+        float kasar_quantity "Damaged / Shortage Pieces Accepted"
+        float fent_quantity "Leftover Roll Cloth Returned"
         date dispatch_date
         datetime created_at
     }
@@ -502,6 +525,10 @@ erDiagram
         bigint start_stitch_counter "LCD Counter at start"
         bigint end_stitch_counter "LCD Counter at end"
         bigint total_stitches "Computed: end - start"
+        bigint target_stitches "Baseline target: 400000"
+        float efficiency_pct "Computed: total / target * 100"
+        float bonus_earned_inr "Computed Karigar bonus in INR"
+        boolean is_low_efficiency_alert "True if eff < 70% or downtime > 90m"
         int rpm_average "Operating RPM"
         int downtime_minutes "Breakage/Electricity delay"
         string photo_url "LCD screen photo"
@@ -525,7 +552,7 @@ erDiagram
 
 ---
 
-### 3.2 SQLModel Table Definitions & Field Constraints
+### 3.2 SQLModel Table Definitions & Field Constraints (v2.0)
 
 #### A. Table `parties` (વેપારી ખાતાઓ)
 Represents merchant clients supplying fabric for embroidery job-work.
@@ -538,8 +565,8 @@ Represents merchant clients supplying fabric for embroidery job-work.
 | `city` | `VARCHAR(100)` | Default: `'Surat'` | Primary textile cluster city |
 | `created_at` | `TIMESTAMP` | Default: `utcnow()` | Record creation timestamp |
 
-#### B. Table `challans` (આવક / જાવક ચલણ માસ્ટર)
-Stores both Inward (raw goods from Party) and Outward (finished goods dispatched) slips.
+#### B. Table `challans` (આવક / જાવક ચલણ માસ્ટર - v2.0)
+Stores both Inward (raw goods from Party) and Outward (finished goods dispatched) slips with job-work rates and machine punching codes.
 
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -548,7 +575,11 @@ Stores both Inward (raw goods from Party) and Outward (finished goods dispatched
 | `party_id` | `UUID` | Foreign Key -> `parties.id`, Index | Linked party |
 | `challan_number`| `VARCHAR(100)`| Not Null, Index | Physical paper slip number |
 | `challan_date` | `DATE` | Not Null | Date inscribed on the slip |
-| `design_number`| `VARCHAR(100)`| Not Null, Index | Embroidery design code (e.g., "D-1024") |
+| `design_number`| `VARCHAR(100)`| Not Null, Index | Party's embroidery design code (e.g., "D-1024") |
+| `factory_punch_number`| `VARCHAR(100)`| Nullable | **v2.0:** Internal machine `.DST` punch code (e.g., "SK-45") |
+| `agreed_rate` | `FLOAT` | Default: `0.0` | **v2.0:** Job-work rate in INR per piece/meter (e.g., `42.0`) |
+| `stitches_per_piece` | `INTEGER` | Default: `0` | **v2.0:** Design stitch count (e.g., `28000`) |
+| `design_photo_url` | `VARCHAR(500)`| Nullable | **v2.0:** Sample design photo path in `/uploads` |
 | `fabric_type` | `VARCHAR(100)`| Not Null | Fabric base (e.g., "Georgette", "Silk") |
 | `total_quantity`| `FLOAT` | Not Null, Positive | Total quantity in this slip |
 | `unit` | `VARCHAR(10)` | Enum: `PCS`, `MTR`, `TAKA` | Measurement unit |
@@ -558,21 +589,23 @@ Stores both Inward (raw goods from Party) and Outward (finished goods dispatched
 
 *Composite Unique Guard:* `(party_id, challan_number, challan_type)` ensures no party's challan number can be logged twice.
 
-#### C. Table `lot_deliveries` (ટુકડે-ટુકડે જાવક લિંક)
-The heart of the reconciliation engine. Links each partial outward delivery back to its original inward lot and records approved Kasar shortage.
+#### C. Table `lot_deliveries` (ટુકડે-ટુકડે જાવક લિંક - v2.0)
+The heart of the reconciliation engine. Links each partial outward delivery back to its original inward lot and records raw returns (`કાચો પરત`), Kasar, and Fent.
 
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | `UUID` | Primary Key, Default: `uuid4()` | Unique identifier |
 | `inward_challan_id` | `UUID` | Foreign Key -> `challans.id`, Index | Original inward lot ID |
 | `outward_challan_id`| `UUID` | Foreign Key -> `challans.id`, Index | Outward delivery slip ID |
-| `fresh_quantity` | `FLOAT` | Not Null, >= 0 | Perfect, finished pieces delivered |
-| `kasar_quantity` | `FLOAT` | Not Null, Default: 0 | Damaged / shortage pieces accepted |
+| `fresh_quantity` | `FLOAT` | Not Null, Default: `0.0` | Finished embroidered pieces delivered (**Billable**) |
+| `returned_raw_quantity` | `FLOAT` | Not Null, Default: `0.0` | **v2.0:** Unprocessed raw fabric returned to party (**Billed at ₹0**) |
+| `kasar_quantity` | `FLOAT` | Not Null, Default: `0.0` | Damaged / shortage pieces accepted by party |
+| `fent_quantity` | `FLOAT` | Not Null, Default: `0.0` | **v2.0:** Leftover roll cloth returned |
 | `dispatch_date` | `DATE` | Not Null | Date of outward dispatch |
 | `created_at` | `TIMESTAMP` | Default: `utcnow()` | Record creation timestamp |
 
-#### D. Table `machine_shifts` (શિફ્ટ વાઈઝ સ્ટીચ લોગ)
-Records 12-hour machine shift outputs (Day / Night) directly from machine LCD counters to track operator output and detect excessive downtime.
+#### D. Table `machine_shifts` (શિફ્ટ વાઈઝ સ્ટીચ લોગ - v2.0)
+Records 12-hour machine shift outputs (Day / Night) directly from machine LCD counters and persists operator bonuses and low-efficiency alerts.
 
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -584,8 +617,12 @@ Records 12-hour machine shift outputs (Day / Night) directly from machine LCD co
 | `start_stitch_counter`| `BIGINT` | Not Null | LCD counter at start of shift |
 | `end_stitch_counter` | `BIGINT` | Not Null | LCD counter at end of shift |
 | `total_stitches` | `BIGINT` | Not Null (Computed: `end - start`) | Total stitches run in 12 hours |
-| `rpm_average` | `INTEGER` | Default: 650 | Average running speed in RPM |
-| `downtime_minutes` | `INTEGER` | Default: 0 | Idle minutes (thread break/electricity) |
+| `target_stitches` | `BIGINT` | Default: `400000` | **v2.0:** Baseline 12-hr target stitches |
+| `efficiency_pct` | `FLOAT` | Default: `0.0` | **v2.0:** `(total_stitches / target_stitches) * 100` |
+| `bonus_earned_inr` | `FLOAT` | Default: `0.0` | **v2.0:** `max(0, total - target) / 10000 * 15.0` |
+| `is_low_efficiency_alert`| `BOOLEAN` | Default: `False` | **v2.0:** `True` if `efficiency_pct < 70%` or `downtime > 90` |
+| `rpm_average` | `INTEGER` | Default: `650` | Average running speed in RPM |
+| `downtime_minutes` | `INTEGER` | Default: `0` | Idle minutes (thread break/electricity) |
 | `photo_url` | `VARCHAR(500)`| Nullable | Photo proof of machine LCD screen |
 | `notes` | `TEXT` | Nullable | Operator shift observations |
 | `created_at` | `TIMESTAMP` | Default: `utcnow()` | Record creation timestamp |
@@ -608,20 +645,30 @@ Stores mathematical job-work costing calculations for embroidery designs.
 
 ---
 
-### 3.3 Core Mathematical Reconciliation & Financial Formulas
+### 3.3 Core Mathematical Reconciliation & Financial Formulas (v2.0)
 
-#### Formula 1: Real-Time Lot Reconciliation Balance
-For every Inward Lot $L$ received with initial quantity $Q_{\text{in}}$:
+#### Formula 1: Real-Time Lot Reconciliation & Job-Work Billing (v2.0)
+For every Inward Lot $L$ received with initial fabric quantity $Q_{\text{in}}$ and agreed rate $R$:
 
-$$\text{Delivered Fresh Quantity } (Q_{\text{fresh}}) = \sum_{i=1}^{k} \text{fresh\_quantity}_i$$
+$$\text{Delivered Fresh Embroidered Quantity } (Q_{\text{fresh}}) = \sum_{i=1}^{k} \text{fresh\_quantity}_i$$
 
-$$\text{Total Accepted Kasar Damage } (Q_{\text{kasar}}) = \sum_{i=1}^{k} \text{kasar\_quantity}_i$$
+$$\text{Unprocessed Returned Raw Quantity } (Q_{\text{returned\_raw}}) = \sum_{i=1}^{k} \text{returned\_raw\_quantity}_i$$
 
-$$\text{Total Accounted Quantity } (Q_{\text{accounted}}) = Q_{\text{fresh}} + Q_{\text{kasar}}$$
+$$\text{Accepted Kasar Damage Quantity } (Q_{\text{kasar}}) = \sum_{i=1}^{k} \text{kasar\_quantity}_i$$
 
-$$\text{Live Pending Balance } (Q_{\text{pending}}) = Q_{\text{in}} - Q_{\text{accounted}}$$
+$$\text{Leftover Fent Quantity } (Q_{\text{fent}}) = \sum_{i=1}^{k} \text{fent\_quantity}_i$$
+
+$$\text{Total Accounted Floor Quantity } (Q_{\text{accounted}}) = Q_{\text{fresh}} + Q_{\text{returned\_raw}} + Q_{\text{kasar}} + Q_{\text{fent}}$$
+
+$$\text{Live Pending Floor Balance } (Q_{\text{pending}}) = Q_{\text{in}} - Q_{\text{accounted}}$$
 
 $$\text{Reconciliation Completion Rate } (\%) = \left( \frac{Q_{\text{accounted}}}{Q_{\text{in}}} \right) \times 100$$
+
+**Commercial Billing Equations:**
+$$\text{Net Billable Quantity} = Q_{\text{fresh}}$$
+*Note: Unprocessed returned raw fabric ($Q_{\text{returned\_raw}}$), Kasar ($Q_{\text{kasar}}$), and Fent ($Q_{\text{fent}}$) are strictly unbillable and billed at ₹0.*
+
+$$\text{Total Billable Job-Work Amount (INR)} = Q_{\text{fresh}} \times R$$
 
 #### Formula 2: Stitch-to-Profit Job-Work Costing Equation
 Given:
@@ -641,16 +688,18 @@ Given:
 6. $\text{Break-Even Rate per Piece} = ₹C_{\text{total}}$
 7. $\text{Recommended Party Quotation (25% Profit)} = Q_{\text{party}} = C_{\text{total}} \times 1.25$
 
-#### Formula 3: Karigar Operator Shift Bonus & Productivity Formula
-Calculates whether the machine operator exceeded the factory baseline to earn an incentive bonus:
+#### Formula 3: Persisted Karigar Operator Shift Bonus & Alert Model (v2.0)
+Calculates shift performance, persists bonus earnings in INR, and flags low-efficiency alert conditions:
 
 $$\Delta S = S_{\text{end}} - S_{\text{start}}$$
 
-$$\text{Target Baseline Stitches } (S_{\text{target}}) = RPM_{\text{rated}} \times (720 - D_{\text{allowance}}) \times 0.70$$
+$$\text{Shift Efficiency Percentage } (\%) = \left( \frac{\Delta S}{S_{\text{target}}} \right) \times 100 \quad \text{where } S_{\text{target}} = 400,000$$
 
 $$\text{Excess Stitches} = \max(0, \Delta S - S_{\text{target}})$$
 
-$$\text{Operator Bonus (₹)} = \left( \frac{\text{Excess Stitches}}{10,000} \right) \times \text{BonusRate per 10k Stitches (e.g., ₹15)}$$
+$$\text{Bonus Earned (INR)} = \left( \frac{\text{Excess Stitches}}{10,000} \right) \times ₹15.0$$
+
+$$\text{is\_low\_efficiency\_alert} = (\text{Efficiency } < 70\%) \lor (\text{Downtime Minutes} > 90)$$
 
 ---
 
@@ -660,9 +709,9 @@ $$\text{Operator Bonus (₹)} = \left( \frac{\text{Excess Stitches}}{10,000} \ri
 stateDiagram-v2
     [*] --> RECEIVED: Inward Challan Uploaded (Q_pending = Q_in)
     
-    RECEIVED --> IN_PROGRESS: First Partial Outward Dispatch (0 < Q_pending < Q_in)
+    RECEIVED --> IN_PROGRESS: First Partial Delivery or Raw Return (0 < Q_pending < Q_in)
     
-    IN_PROGRESS --> IN_PROGRESS: Subsequent Outward Dispatch (0 < Q_pending < Q_in)
+    IN_PROGRESS --> IN_PROGRESS: Subsequent Delivery / Raw Return (0 < Q_pending < Q_in)
     
     IN_PROGRESS --> COMPLETED: Final Outward Dispatch (Q_pending == 0)
     RECEIVED --> COMPLETED: 100% Single-Batch Dispatch (Q_pending == 0)
@@ -677,9 +726,9 @@ stateDiagram-v2
 
 | State | Condition | UI Badge Color | Action Allowed |
 |---|---|---|---|
-| `RECEIVED` | $Q_{\text{pending}} = Q_{\text{in}}$ | Blue (`#3b82f6`) | "જાવક નોંધો" (Log First Partial Delivery) |
-| `IN_PROGRESS` | $0 < Q_{\text{pending}} < Q_{\text{in}}$ | Amber (`#f59e0b`) | "જાવક નોંધો" (Log Additional Delivery / Kasar) |
-| `COMPLETED` | $Q_{\text{pending}} = 0$ | Green (`#10b981`) | "ખાતું સેટલ કરો" (View Zero-Dispute Summary) |
+| `RECEIVED` | $Q_{\text{pending}} = Q_{\text{in}}$ | Blue (`#3b82f6`) | "જાવક નોંધો" (Log First Partial Delivery / Raw Return) |
+| `IN_PROGRESS` | $0 < Q_{\text{pending}} < Q_{\text{in}}$ | Amber (`#f59e0b`) | "જાવક નોંધો" (Log Additional Delivery, Raw Return, or Kasar) |
+| `COMPLETED` | $Q_{\text{pending}} = 0$ | Green (`#10b981`) | "ખાતું સેટલ કરો" (View Zero-Dispute Summary & Billable Amount) |
 | `OVERDELIVERED` | $Q_{\text{pending}} < 0$ | Red (`#ef4444`) | "ભૂલ સુધારો" (Audit Challan Entries) |
 
 ---
@@ -706,16 +755,16 @@ sequenceDiagram
     
     alt Valid GEMINI_API_KEY Available
         AIService->>Gemini: client.models.generate_content(model="gemini-2.5-flash", contents=[image, prompt])
-        Gemini-->>AIService: Raw JSON Response (with Gujarati digits & terms)
+        Gemini-->>AIService: Raw JSON Response (with Gujarati digits, punch code, rate)
         AIService->>AIService: transliterate_gujarati_numerals(raw_json)
         AIService->>AIService: Schema validation & confidence score calculation
     else Offline or No GEMINI_API_KEY
         AIService->>AIService: Load Deterministic Demo Fallback Preset
     end
 
-    AIService-->>API: Strict Validated JSON Payload
+    AIService-->>API: Strict Validated JSON Payload (v2.0)
     API-->>UI: 200 OK + Extracted Challan Data
-    UI->>Master: Displays Editable Confirmation Card (Party, Challan No, Qty, Unit)
+    UI->>Master: Displays Editable Confirmation Card (Party, Challan No, Punch Code, Rate, Qty)
     Master->>UI: Verifies & clicks "કન્ફર્મ કરો (Confirm & Save)"
     UI->>API: POST /api/challans (JSON)
     API->>DB: INSERT into challans (Protected by Duplicate Guard)
@@ -765,7 +814,7 @@ def transliterate_gujarati_numerals(text: str) -> str:
 
 ---
 
-### 4.3 Multimodal Prompt Blueprint & Strict JSON Schema
+### 4.3 Multimodal Prompt Blueprint & Strict JSON Schema (v2.0)
 
 When sending an image to Gemini 2.5 Flash, `ai_service.py` executes the following system instruction and prompt:
 
@@ -776,17 +825,21 @@ Extract data strictly into the provided JSON schema.
 If digits are written in Gujarati (૧, ૨, ૩...), convert them into standard Arabic numbers (1, 2, 3...).
 Normalize units into strictly one of: "PCS", "MTR", "TAKA".
 Identify if the challan is an INWARD (આવક) slip or OUTWARD (જાવક) slip.
+Extract internal factory punch codes (e.g. SK-45), agreed job-work rates in INR (e.g. 42.0), and design stitch counts if written.
 If information is missing, use null. Never guess or hallucinate.
 Return ONLY clean JSON without markdown codeblocks or extra commentary.
 
-REQUIRED JSON SCHEMA:
+REQUIRED JSON SCHEMA (v2.0):
 {
   "challan_type": "INWARD" | "OUTWARD",
   "party_name": "string (Trade name of party, e.g. Radhe Creation)",
-  "challan_number": "string (Physical slip number, e.g. 1042)",
+  "challan_number": "string (Physical slip number, e.g. 1048)",
   "challan_date": "YYYY-MM-DD (Date written on slip or today's date if missing)",
-  "design_number": "string (Design or pattern code, e.g. D-402)",
-  "fabric_type": "string (e.g. Georgette, Organza, Rayon, Silk, Cotton)",
+  "design_number": "string (Party design code, e.g. D-1024)",
+  "factory_punch_number": "string | null (Internal machine .DST punching code, e.g. SK-45)",
+  "agreed_rate": float (Job-work rate in INR per piece/meter, default 0.0),
+  "stitches_per_piece": integer (Stitch count in design, default 0),
+  "fabric_type": "string (e.g. Fox Georgette, Organza, Rayon, Silk, Cotton)",
   "quantity": float (Total numeric quantity),
   "unit": "PCS" | "MTR" | "TAKA",
   "raw_gujarati_notes": "string (Verbatim transcription of any Gujarati remarks on slip)",
@@ -806,7 +859,7 @@ flowchart LR
     NLP --> IntentClassifier{"Intent?"}
     
     IntentClassifier -->|Query Balance| IntentQuery["Intent: PENDING_QUERY\nEntity: party='Radhe Creation'"]
-    IntentClassifier -->|Log Dispatch| IntentDispatch["Intent: OUTWARD_DISPATCH\nEntities: party, design, qty"]
+    IntentClassifier -->|Log Dispatch| IntentDispatch["Intent: OUTWARD_DISPATCH\nEntities: party, design, qty, raw_ret, kasar"]
     IntentClassifier -->|Stitch Rate| IntentRate["Intent: RATE_CALCULATOR\nEntities: stitches, heads, rpm"]
     IntentClassifier -->|Log Shift| IntentShift["Intent: SHIFT_LOG\nEntities: machine, start, end"]
 
@@ -817,8 +870,8 @@ flowchart LR
 #### Natural Language Gujarati Examples Handled:
 1. *"રાધે ક્રિએશનનો બાકી માલ કેટલો છે?"*  
    $\rightarrow$ `Intent: PENDING_QUERY`, `party: "Radhe Creation"`. Returns live balance card with progress bar.
-2. *"મારુતિ એમ્બ્રોઈડરીમાં આજે ૫૦૦ પીસ ડીઝાઇન ૪૦૨ મોકલી આપ્યા અને ૨૦ પીસ કાસર નીકળ્યો"*  
-   $\rightarrow$ `Intent: OUTWARD_DISPATCH`, `party: "Maruti Embroidery"`, `design: "402"`, `fresh_qty: 500`, `kasar_qty: 20`. Returns 1-click confirmation dialog to log delivery.
+2. *"મારુતિ એમ્બ્રોઈડરીમાં આજે ૪૦૦ પીસ ફ્રેશ, ૫૦ પીસ કાચો પરત અને ૨૦ પીસ કાસર મોકલી આપ્યા"*  
+   $\rightarrow$ `Intent: OUTWARD_DISPATCH`, `party: "Maruti Embroidery"`, `fresh_qty: 400`, `returned_raw: 50`, `kasar: 20`. Returns 1-click confirmation dialog.
 3. *"૨૮,૦૦૦ ટાંકાની નવી ડીઝાઇન છે, ૨૦ માથાનું મશીન છે, શું ભાવ પોસાય?"*  
    $\rightarrow$ `Intent: RATE_CALCULATOR`, `stitches: 28000`, `heads: 20`. Runs Stitch Costing Engine and returns Break-Even Rate (₹34.80) & Recommended Quote (₹43.50).
 
@@ -841,48 +894,68 @@ Extract:
 
 ---
 
-### 4.6 Deterministic Offline & Local Demo Fallback Engine
+### 4.6 Deterministic Offline & Local Demo Fallback Engine (4 Core Presets)
 
-When testing locally without a `GEMINI_API_KEY` or when floor internet drops, `ai_service.py` features a deterministic fallback engine with 4 realistic preset scenarios:
+When testing locally without a `GEMINI_API_KEY` or during live factory floor demonstrations, `ai_service.py` features a deterministic fallback engine with **4 exact presets**:
 
 ```python
 DEMO_PRESETS = {
+    # Preset 1: 1,200 PCS Inward Challan with Punch Code & Agreed Rate
     "preset_radhe_inward.jpg": {
         "challan_type": "INWARD",
         "party_name": "Radhe Creation (સુરત)",
         "challan_number": "RC-1048",
         "challan_date": "2026-10-24",
         "design_number": "D-1024",
+        "factory_punch_number": "SK-45",
+        "agreed_rate": 42.0,
+        "stitches_per_piece": 28000,
         "fabric_type": "Fox Georgette",
         "quantity": 1200.0,
         "unit": "PCS",
-        "raw_gujarati_notes": "ગળા-દામન વર્ક, ૧૨૦૦ નંગ કટ પીસ, ઝરી દોરા સાથે",
+        "raw_gujarati_notes": "ગળા-દામન વર્ક, ૧૨૦૦ નંગ કટ પીસ, પંચિંગ SK-45, ભાવ ₹૪૨/પીસ",
         "confidence_score": 0.98
     },
+    
+    # Preset 2: Partial Outward Dispatch with Returned Raw Fabric & Kasar
     "preset_maruti_outward.jpg": {
         "challan_type": "OUTWARD",
         "party_name": "Maruti Embroidery (અમદાવાદ)",
         "challan_number": "ME-802",
         "challan_date": "2026-10-24",
         "design_number": "D-402",
+        "factory_punch_number": "MR-12",
+        "agreed_rate": 35.0,
+        "stitches_per_piece": 22000,
+        "fresh_quantity": 400.0,
+        "returned_raw_quantity": 50.0,
+        "kasar_quantity": 20.0,
+        "fent_quantity": 10.0,
         "fabric_type": "Pure Silk",
         "quantity": 400.0,
         "unit": "PCS",
-        "raw_gujarati_notes": "પહેલો લોટ જાવક ૪૦૦ પીસ ફ્રેશ, ૨૦ પીસ કાસર (તાંતણા તૂટેલા)",
+        "raw_gujarati_notes": "જાવક: ૪૦૦ પીસ ફ્રેશ, ૫૦ પીસ કાચો પરત, ૨૦ પીસ કાસર, ૧૦ પીસ ફેંટ",
         "confidence_score": 0.95
     },
-    "preset_shivam_taka.jpg": {
+
+    # Preset 3: Triggers 409 Conflict Duplicate Challan Guard on RC-1048
+    "preset_duplicate_guard.jpg": {
         "challan_type": "INWARD",
-        "party_name": "Shivam Textiles (જેતપુર)",
-        "challan_number": "ST-5501",
-        "challan_date": "2026-10-23",
-        "design_number": "D-8820",
-        "fabric_type": "Rayon 14kg",
-        "quantity": 3500.0,
-        "unit": "MTR",
-        "raw_gujarati_notes": "૩૫૦૦ મીટર આખા તાકા, મલ્ટી કોર્ડિંગ વર્ક",
-        "confidence_score": 0.96
+        "party_name": "Radhe Creation (સુરત)",
+        "challan_number": "RC-1048",  # Duplicate collision!
+        "challan_date": "2026-10-24",
+        "design_number": "D-1024",
+        "factory_punch_number": "SK-45",
+        "agreed_rate": 42.0,
+        "stitches_per_piece": 28000,
+        "fabric_type": "Fox Georgette",
+        "quantity": 1200.0,
+        "unit": "PCS",
+        "raw_gujarati_notes": "ડુપ્લિકેટ ચલણ ચકાસણી ટેસ્ટ (Duplicate Guard Test)",
+        "confidence_score": 0.99
     },
+
+    # Preset 4: Dahao 328 LCD Counter Screen with Persisted Karigar Bonus
     "preset_dahao_lcd.jpg": {
         "machine_number": "M-01",
         "shift_type": "DAY",
@@ -890,6 +963,10 @@ DEMO_PRESETS = {
         "start_stitch_counter": 14200000,
         "end_stitch_counter": 14645000,
         "total_stitches": 445000,
+        "target_stitches": 400000,
+        "efficiency_pct": 111.25,
+        "bonus_earned_inr": 67.50,
+        "is_low_efficiency_alert": False,
         "rpm_average": 680,
         "downtime_minutes": 25,
         "confidence_score": 0.99
@@ -918,31 +995,23 @@ sequenceDiagram
     Driver->>Master: Hands over 1,200 pcs Georgette with paper slip
     Master->>Phone: Taps Camera icon in WhatsApp Bot Simulator
     Phone->>Backend: POST /api/ai/parse-challan-image
-    Backend->>Gemini: Multimodal OCR Prompt
-    Gemini-->>Backend: Parsed JSON (Party: Radhe, Qty: 1200, Design: D-1024)
+    Backend->>Gemini: Multimodal OCR Prompt (Extracts Punch SK-45 & Rate ₹42)
+    Gemini-->>Backend: Parsed JSON (Party: Radhe, Qty: 1200, Design: D-1024, Punch: SK-45, Rate: 42)
     Backend-->>Phone: Returns OCR Preview Card
     Master->>Phone: Checks data against physical slip, taps "કન્ફર્મ કરો"
     Phone->>Backend: POST /api/challans
     Backend->>Backend: Duplicate Guard checks (Party="Radhe", No="RC-1048")
-    Backend->>DB: INSERT into challans (Type=INWARD, Qty=1200)
+    Backend->>DB: INSERT into challans (Type=INWARD, Qty=1200, Punch="SK-45", Rate=42.0)
     DB-->>Backend: Record Created
     Backend-->>Phone: 201 Created + WhatsApp Success Bubble
     Phone->>Phone: Updates Tab 2 (Pending Lots) with new 1,200 pcs pending gauge
 ```
 
-#### Step-by-Step Sequence:
-1. **Physical Delivery Arrival:** A tempo driver unloads raw fabric rolls or cut pieces with a handwritten paper slip from the merchant ("Party").
-2. **Camera Snap:** The floor supervisor ("Master") opens ChallanAI on a smartphone, taps Tab 1 (WhatsApp AI Bot), and clicks the camera button to take a photo of the paper slip.
-3. **Multimodal Extraction:** The image is sent to `/api/ai/parse-challan-image`. Gemini 2.5 Flash transcribes the slip, converts Gujarati digits to Arabic numbers, and returns structured JSON.
-4. **Human-in-the-Loop Verification:** The UI renders an editable preview card displaying the extracted Party Name, Challan Number, Date, Design Number, Quantity, and Unit. The supervisor corrects any field if necessary.
-5. **Duplicate Protection:** When the supervisor taps "કન્ફર્મ કરો (Confirm)", the backend verifies whether `challan_number` already exists for this `party_id`. If duplicate, it returns `409 Conflict` and prevents double-counting.
-6. **Lot Ledger Initialization:** Once saved, the new Inward Challan creates an active Lot with `Pending Balance = Total Inward Qty` and status `RECEIVED`.
-
 ---
 
-### 5.2 Flow B: Tranche Partial Outward Dispatch & Kasar Dispute Prevention
+### 5.2 Flow B: Tranche Partial Outward Dispatch, Returned Raw (`કાચો પરત`) & Kasar Dispute Prevention
 
-In the embroidery industry, an inward lot of 1,200 pieces is never delivered in a single batch. As 20-head machines produce batches, finished pieces leave in 3 to 6 tranches.
+In the embroidery industry, an inward lot of 1,200 pieces is never delivered in a single batch. If the party requests unembroidered cut pieces back (`કાચો માલ પરત`), they are deducted from pending inventory but billed at ₹0.
 
 ```mermaid
 sequenceDiagram
@@ -954,26 +1023,22 @@ sequenceDiagram
     actor Party as Merchant Client (Party)
 
     Master->>UI: Selects Radhe Creation (Lot: 1,200 pcs D-1024)
-    UI->>Master: Displays Pending: 1,200 | Delivered: 0 | Kasar: 0
+    UI->>Master: Displays Pending: 1,200 | Delivered: 0 | Returned Raw: 0 | Kasar: 0
     Master->>UI: Clicks "જાવક નોંધો (Log Partial Delivery)"
-    Master->>UI: Enters Fresh Delivered: 400 | Kasar (Defect): 20
+    Master->>UI: Enters Fresh: 400 | Returned Raw: 50 | Kasar: 20 | Fent: 10
     Master->>UI: Attaches photo of signed tempo outward receipt
     UI->>Backend: POST /api/lots/{inward_id}/dispatch
     
-    Backend->>Backend: Balance Calc: 1200 - (400 + 20) = 780 Pending
+    Backend->>Backend: Balance: 1200 - (400 + 50 + 20 + 10) = 720 Pending
+    Backend->>Backend: Net Billable Qty = 400 (Billable Amount: 400 * 42 = ₹16,800)
     Backend->>DB: INSERT Outward Challan + INSERT LotDelivery
     DB-->>Backend: Records Committed
     Backend-->>UI: 200 OK + Updated Lot Balance
     
     UI->>Master: Generates WhatsApp 1-Click Dispatch Receipt Link
     Master->>Party: Sends WhatsApp dispatch notice with photo proof link
-    Note over Master,Party: Zero dispute at month-end because Kasar was agreed on Day 1
+    Note over Master,Party: Zero dispute: Fresh billed at ₹42, Returned Raw at ₹0, Kasar agreed
 ```
-
-#### The Zero-Dispute Kasar Resolution Mechanism:
-- If 20 pieces suffered thread defects or needle breaks during stitching, they are entered into `kasar_quantity` **at the moment of delivery**, accompanied by a photo.
-- The merchant party receives an instant WhatsApp receipt acknowledging both fresh pieces and defective pieces.
-- At month-end billing, the merchant cannot arbitrarily claim an unverified 10% Kasar deduction because every deduction was signed, time-stamped, and photographed on the date of dispatch.
 
 ---
 
@@ -993,13 +1058,13 @@ sequenceDiagram
     Master->>PWA: Snaps photo of Machine LCD Screen
     PWA->>Backend: POST /api/shifts/log (Multipart)
     Backend->>Backend: AI reads LCD: End=14,645,000 | Start=14,200,000
-    Backend->>Backend: Total Stitches = 445,000
-    Backend->>Backend: Target = 400,000 | Excess = 45,000 stitches
-    Backend->>Backend: Operator Bonus = (45,000 / 10,000) * ₹15 = ₹67.50
-    Backend->>DB: INSERT into machine_shifts
+    Backend->>Backend: Total Stitches = 445,000 | Target = 400,000
+    Backend->>Backend: Efficiency = 111.25% | Bonus = (45,000 / 10,000) * ₹15 = ₹67.50
+    Backend->>Backend: Alert Flag = False (Efficiency >= 70% and Downtime <= 90)
+    Backend->>DB: INSERT into machine_shifts (target, eff, bonus, alert)
     DB-->>Backend: Saved
     Backend-->>PWA: 200 OK + Shift Performance Summary Card
-    PWA-->>Master: Displays: Stitches: 445,000 | Efficiency: 89% | Bonus: ₹67.50
+    PWA-->>Master: Displays: Stitches: 445,000 | Efficiency: 111.2% | Bonus: ₹67.50
 ```
 
 ---
@@ -1017,16 +1082,21 @@ sequenceDiagram
 
     Owner->>UI: Selects Party "Radhe Creation"
     UI->>Backend: GET /api/ledger/{party_id}
-    Backend->>DB: Queries all Inwards, Linked Outwards, and Kasar logs
+    Backend->>DB: Queries all Inwards, Outwards, Returned Raw, Kasar, Rates
     DB-->>Backend: Complete relational audit trail
-    Backend-->>UI: 200 OK (Summary + Transaction List + Photo URLs)
-    UI-->>Owner: Renders Dual Inward/Outward Audit Table with photo thumbnails
+    Backend-->>Backend: Computes Billable Fresh Qty, Returned Raw Qty, Kasar Qty, Total ₹
+    Backend-->>Backend: Formats WhatsApp Udhari Reminder URL with polite Gujarati message
+    Backend-->>UI: 200 OK (Summary + Transactions + whatsapp_udhari_url)
+    UI-->>Owner: Renders Dual Audit Table with thumbnails + WhatsApp Udhari Button
     
-    par 1. Printable Zero-Dispute Statement
+    par 1. WhatsApp Udhari Reminder
+        Owner->>UI: Clicks "📲 વોટ્સએપ ઉઘરાણી મેસેજ"
+        UI->>Party: Opens WhatsApp chat with prefilled Gujarati statement & proof link
+    and 2. Printable Zero-Dispute Statement
         Owner->>UI: Clicks "🖨️ A4 સ્ટેટમેન્ટ પ્રિન્ટ કરો"
         UI->>UI: Triggers window.print() with @media print stylesheet
         UI-->>Party: Gives signed A4 paper statement with photos
-    and 2. Tally Prime Integration
+    and 3. Tally Prime Integration
         Owner->>UI: Clicks "📊 Tally CSV ડાઉનલોડ"
         UI->>Backend: GET /api/ledger/{party_id}/export-tally
         Backend-->>UI: Returns RFC 4180 CSV compatible with Tally Prime
@@ -1038,30 +1108,44 @@ sequenceDiagram
 
 # SECTION 6: API ENDPOINT SPECIFICATION, REQUEST/RESPONSE CONTRACTS & ERROR HANDLING
 
-### 6.1 REST Endpoint Master Table
-
 | HTTP Method | Path | Summary & Purpose | Auth | Request Body | Success Response | Status |
 |---|---|---|---|---|---|---|
+| `GET` | `/` | Root endpoint: API overview, Swagger docs link, cluster status | None | None | `{system, version, status, docs}` | `200 OK` |
 | `GET` | `/api/health` | System health, DB type (Neon/SQLite), AI status | None | None | `{status, db, ai_mode, version}` | `200 OK` |
+| `GET` | `/api/dashboard/summary` | **v2.0:** High-level factory KPIs & alerts | None | None | `DashboardSummaryRead` | `200 OK` |
 | `POST` | `/api/challans` | Create Inward/Outward Challan (w/ Duplicate Guard) | None | `ChallanCreate` (JSON) | `ChallanRead` | `201 Created` |
 | `GET` | `/api/challans` | List challans (filterable by party, type, date) | None | Query params | `List[ChallanRead]` | `200 OK` |
 | `GET` | `/api/challans/{id}` | Get single challan with linked deliveries | None | Path `id` | `ChallanDetailRead` | `200 OK` |
-| `GET` | `/api/lots/pending` | Get all active lots with live remaining balances | None | None | `List[PendingLotRead]` | `200 OK` |
-| `POST` | `/api/lots/{id}/dispatch` | Log partial outward delivery & Kasar against lot | None | `LotDispatchCreate` | `LotDispatchResponse` | `200 OK` |
+| `GET` | `/api/lots/pending` | Active lots with live balances & completion % | None | None | `List[PendingLotRead]` | `200 OK` |
+| `POST` | `/api/lots/{id}/dispatch` | **v2.0:** Partial delivery (Fresh, Returned Raw, Kasar, Fent) | None | `LotDispatchCreate` | `LotDispatchResponse` | `200 OK` |
 | `POST` | `/api/ai/parse-challan-image` | Multimodal Vision OCR on handwritten slip | None | `file` (Multipart FormData) | `AIChallanOCRResponse` | `200 OK` |
 | `POST` | `/api/ai/process-message` | Gujarati/English natural language intent parsing | None | `{message: string}` | `AIMessageResponse` | `200 OK` |
 | `POST` | `/api/calculator/quote` | Compute break-even cost and 25% quote rate | None | `QuoteRequest` | `QuoteResponse` | `200 OK` |
-| `POST` | `/api/shifts/log` | Record machine LCD stitch counter for shift | None | `ShiftLogCreate` | `ShiftLogRead` | `201 Created` |
+| `POST` | `/api/shifts/log` | **v2.0:** Record LCD counter & persist bonus/alert | None | `ShiftLogCreate` | `ShiftLogRead` | `201 Created` |
 | `GET` | `/api/shifts/summary` | Machine shift comparison & bonus reports | None | Query `?date=YYYY-MM-DD` | `List[ShiftSummaryRead]` | `200 OK` |
 | `GET` | `/api/parties` | List parties with active lot count & contact | None | None | `List[PartyRead]` | `200 OK` |
-| `GET` | `/api/ledger/{party_id}` | Date-wise reconciled statement with photo proofs | None | Path `party_id` | `PartyLedgerRead` | `200 OK` |
+| `GET` | `/api/ledger/{party_id}` | **v2.0:** Reconciled statement, billing ₹ & WhatsApp link | None | Path `party_id` | `PartyLedgerRead` | `200 OK` |
 | `GET` | `/api/ledger/{party_id}/export-tally` | Download Tally Prime-compatible CSV ledger | None | Path `party_id` | `text/csv` attachment | `200 OK` |
 
 ---
 
-### 6.2 Typed Request & Response JSON Contracts
+### 6.2 Typed Request & Response JSON Contracts (v2.0)
 
-#### Contract 1: `POST /api/ai/parse-challan-image` (OCR Extraction)
+#### Contract 1: `GET /api/dashboard/summary` (v2.0 Factory KPIs)
+**Response (`200 OK`):**
+```json
+{
+  "total_pending_pcs": 2480.0,
+  "total_pending_mtr": 4200.0,
+  "active_lots_count": 5,
+  "estimated_pending_billing_inr": 104160.0,
+  "low_shift_alerts_count": 1,
+  "system_status": "ONLINE",
+  "database_type": "NEON_POSTGRESQL"
+}
+```
+
+#### Contract 2: `POST /api/ai/parse-challan-image` (v2.0 OCR Extraction)
 **Request:** Multipart form data with field `file` (image binary: JPEG/PNG/WebP).
 
 **Response (`200 OK`):**
@@ -1074,10 +1158,13 @@ sequenceDiagram
     "challan_number": "RC-1048",
     "challan_date": "2026-10-24",
     "design_number": "D-1024",
+    "factory_punch_number": "SK-45",
+    "agreed_rate": 42.0,
+    "stitches_per_piece": 28000,
     "fabric_type": "Fox Georgette",
     "quantity": 1200.0,
     "unit": "PCS",
-    "raw_gujarati_notes": "૧૨૦૦ નંગ કટ પીસ ગળા-દામન વર્ક",
+    "raw_gujarati_notes": "ગળા-દામન વર્ક, ૧૨૦૦ નંગ કટ પીસ, પંચિંગ SK-45, ભાવ ₹૪૨",
     "confidence_score": 0.98,
     "is_demo_fallback": false,
     "photo_url": "/uploads/challan_rc_1048_1729774000.jpg"
@@ -1085,16 +1172,18 @@ sequenceDiagram
 }
 ```
 
-#### Contract 2: `POST /api/lots/{inward_id}/dispatch` (Tranche Delivery)
+#### Contract 3: `POST /api/lots/{inward_id}/dispatch` (v2.0 Tranche Delivery)
 **Request:**
 ```json
 {
   "outward_challan_number": "JW-405",
   "fresh_quantity": 400.0,
+  "returned_raw_quantity": 50.0,
   "kasar_quantity": 20.0,
+  "fent_quantity": 10.0,
   "dispatch_date": "2026-10-24",
   "photo_url": "/uploads/outward_jw_405.jpg",
-  "notes": "પહેલો લોટ: ૪૦૦ પીસ ફ્રેશ, ૨૦ પીસ કાસર તાંતણા તૂટેલા"
+  "notes": "૪૦૦ પીસ ફ્રેશ, ૫૦ પીસ કાચો પરત, ૨૦ પીસ કાસર, ૧૦ પીસ ફેંટ"
 }
 ```
 
@@ -1106,69 +1195,63 @@ sequenceDiagram
   "data": {
     "lot_id": "c3a1b2d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
     "total_inward": 1200.0,
-    "total_delivered_fresh": 400.0,
-    "total_kasar": 20.0,
-    "pending_balance": 780.0,
+    "fresh_quantity": 400.0,
+    "returned_raw_quantity": 50.0,
+    "kasar_quantity": 20.0,
+    "fent_quantity": 10.0,
+    "total_accounted": 480.0,
+    "pending_balance": 720.0,
+    "billable_amount_inr": 16800.0,
     "status": "IN_PROGRESS",
-    "whatsapp_message": "નમસ્તે રાધે ક્રિએશન, ચલણ નં RC-1048 સામે જાવક ચલણ JW-405 થી 400 પીસ ફ્રેશ અને 20 પીસ કાસર મોકલેલ છે. હવે બાકી માલ 780 પીસ રહ્યો છે."
+    "whatsapp_message": "નમસ્તે રાધે ક્રિએશન, ચલણ RC-1048 સામે જાવક JW-405 થી 400 પીસ ફ્રેશ (બિલિંગ રકમ: ₹16,800), 50 પીસ કાચો પરત, 20 પીસ કાસર મોકલેલ છે. હવે બાકી માલ 720 પીસ રહ્યો છે."
   }
 }
 ```
 
-#### Contract 3: `GET /api/lots/pending` (Floor Stock)
-**Response (`200 OK`):**
-```json
-[
-  {
-    "inward_challan_id": "c3a1b2d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-    "party_id": "9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c",
-    "party_name": "Radhe Creation (સુરત)",
-    "party_phone": "+91 98250 12345",
-    "challan_number": "RC-1048",
-    "challan_date": "2026-10-24",
-    "design_number": "D-1024",
-    "fabric_type": "Fox Georgette",
-    "unit": "PCS",
-    "total_inward": 1200.0,
-    "total_fresh_delivered": 400.0,
-    "total_kasar": 20.0,
-    "pending_balance": 780.0,
-    "completion_percentage": 35.0,
-    "status": "IN_PROGRESS",
-    "photo_url": "/uploads/challan_rc_1048.jpg",
-    "delivery_count": 1
-  }
-]
-```
-
-#### Contract 4: `POST /api/calculator/quote` (Stitch Costing)
-**Request:**
-```json
-{
-  "stitch_count": 28000,
-  "machine_heads": 20,
-  "rpm": 650,
-  "efficiency_pct": 80.0,
-  "shift_cost": 2200.0,
-  "material_type": "JARI_THREAD",
-  "material_cost_per_piece": 8.50,
-  "target_profit_margin_pct": 25.0
-}
-```
-
+#### Contract 4: `GET /api/ledger/{party_id}` (v2.0 Reconciled Statement & WhatsApp Udhari)
 **Response (`200 OK`):**
 ```json
 {
-  "batch_production_minutes": 53.85,
-  "batches_per_shift": 13.37,
-  "pieces_per_shift": 267.4,
-  "machine_cost_per_piece": 8.23,
-  "material_cost_per_piece": 8.50,
-  "total_cost_per_piece": 16.73,
-  "break_even_rate": 16.73,
-  "recommended_quote_rate": 20.91,
-  "profit_per_shift": 1118.0,
-  "currency": "INR (₹)"
+  "party_id": "9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c",
+  "party_name": "Radhe Creation (સુરત)",
+  "party_phone": "+91 98250 12345",
+  "city": "Surat",
+  "summary": {
+    "total_inward_qty": 1200.0,
+    "total_billable_fresh_qty": 400.0,
+    "total_returned_raw_qty": 50.0,
+    "total_kasar_qty": 20.0,
+    "total_fent_qty": 10.0,
+    "pending_balance_qty": 720.0,
+    "total_billable_amount_inr": 16800.0,
+    "settlement_status": "PARTIALLY_DELIVERED"
+  },
+  "whatsapp_udhari_url": "https://wa.me/919825012345?text=%E0%AA%A8%E0%AA%AE%E0%AA%B8%E0%AB%8D%E0%AA%A4%E0%AB%87%20%E0%AA%B0%E0%AA%BE%E0%AA%A7%E0%AB%87%20%E0%AA%95%E0%AB%8D%E0%AA%B0%E0%AA%BF%E0%AA%8F%E0%AA%B6%E0%AA%A8%2C%20%E0%AA%9A%E0%AA%B2%E0%AA%BE%E0%AA%A8%20%E0%AA%B8%E0%AB%87%E0%AA%9F%E0%AA%B2%E0%AA%AE%E0%AB%87%E0%AA%A8%E0%AB%8D%E0%AA%9F%20%E0%AA%AE%E0%AB%81%E0%AA%9C%E0%AA%AC%20400%20%E0%AA%AB%E0%AB%8D%E0%AA%B0%E0%AB%87%E0%AA%B6%20%E0%AA%AA%E0%AB%80%E0%AA%B8%20%E0%AA%9A%E0%AB%8B%E0%AA%96%E0%AB%80%20%E0%AA%95%E0%AB%81%E0%AA%B2%20%E0%AA%AC%E0%AA%BF%E0%AA%B2%E0%AA%BF%E0%AA%82%E0%AA%97%20%E0%AA%B0%E0%AA%95%E0%AA%AE%20%E2%82%B916%2C800%20%E0%AA%A5%E0%AA%BE%E0%AA%AF%20%E0%AA%9B%E0%AB%87.%20%E0%AA%AB%E0%AB%8B%E0%AA%9F%E0%AB%8B%20%E0%AA%AA%E0%AB%8D%E0%AA%B0%E0%AB%82%E0%AA%AB%20%E0%AA%B8%E0%AA%BE%E0%AA%A5%E0%AB%87%20%E0%AA%9A%E0%AA%B2%E0%AA%A3%20%E0%AA%9C%E0%AB%8B%E0%AA%B5%E0%AA%BE%20%E0%AA%B2%E0%AA%BF%E0%AA%82%E0%AA%95%20%E0%AA%95%E0%AB%8D%E0%AA%B2%E0%AA%BF%E0%AA%95%20%E0%AA%95%E0%AA%B0%E0%AB%8B.",
+  "inward_challans": [
+    {
+      "id": "c3a1b2d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "challan_number": "RC-1048",
+      "challan_date": "2026-10-24",
+      "design_number": "D-1024",
+      "factory_punch_number": "SK-45",
+      "agreed_rate": 42.0,
+      "total_quantity": 1200.0,
+      "unit": "PCS",
+      "photo_url": "/uploads/challan_rc_1048.jpg"
+    }
+  ],
+  "outward_deliveries": [
+    {
+      "outward_challan_number": "JW-405",
+      "dispatch_date": "2026-10-24",
+      "fresh_quantity": 400.0,
+      "returned_raw_quantity": 50.0,
+      "kasar_quantity": 20.0,
+      "fent_quantity": 10.0,
+      "billable_amount_inr": 16800.0,
+      "photo_url": "/uploads/outward_jw_405.jpg"
+    }
+  ]
 }
 ```
 
@@ -1179,9 +1262,9 @@ sequenceDiagram
 #### A. Core Business Validation Guards
 1. **Duplicate Challan Guard (`409 Conflict`):**  
    Before creating an Inward or Outward Challan, queries `challans` where `party_id = :party_id AND challan_number = :challan_number AND challan_type = :challan_type`. If a match is found, creation is aborted with a bilingual error message.
-2. **Overdelivery Guard (`400 Bad Request`):**  
+2. **Overdelivery Guard v2.0 (`400 Bad Request`):**  
    In partial outward dispatches, the engine checks:
-   $$\text{Existing Accounted} + \text{New Fresh} + \text{New Kasar} \le Q_{\text{in}} \times 1.02$$
+   $$\text{Existing Accounted} + \text{New Fresh} + \text{New Returned Raw} + \text{New Kasar} + \text{New Fent} \le Q_{\text{in}} \times 1.02$$
    A $2\%$ tolerance accommodates minor meterage variations in raw fabric rolls. Any dispatch beyond $102\%$ throws an overdelivery warning.
 3. **Strict Unit Normalization (`422 Unprocessable Entity`):**  
    Only `PCS`, `MTR`, and `TAKA` are permitted. Inputs such as "Pieces", "Meters", or "Than" are normalized automatically by Pydantic validators before database insertion.
@@ -1201,6 +1284,6 @@ sequenceDiagram
 ---
 
 ### Summary & Developer Next Steps
-This blueprint (`ARCHITECTURE_AND_FLOW.md`) represents the complete, immutable architectural contract for **ChallanAI (EmbroideryOS)**.
+This blueprint (`ARCHITECTURE_AND_FLOW.md`) represents the complete, immutable architectural contract for **ChallanAI (EmbroideryOS) v2.0**.
 
-Every module developed in subsequent tasks must adhere strictly to the contracts, folder structures, and mathematical formulas specified in this document.
+Every module developed in Phase 1 (`/backend`) and Phase 2 (`/frontend`) must adhere strictly to the contracts, folder structures, and mathematical formulas specified in this document.
