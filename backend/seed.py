@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from database import engine, init_db
 from models import (
     Party, Challan, ChallanType, UnitType, LotDelivery,
-    MachineShift, ShiftType, RateQuote, MaterialType
+    MachineShift, ShiftType, RateQuote, MaterialType, KarigarAdvance
 )
 
 def seed_database():
@@ -24,6 +24,8 @@ def seed_database():
             for obj in session.exec(select(MachineShift)).all():
                 session.delete(obj)
             for obj in session.exec(select(RateQuote)).all():
+                session.delete(obj)
+            for obj in session.exec(select(KarigarAdvance)).all():
                 session.delete(obj)
             for obj in session.exec(select(Party)).all():
                 session.delete(obj)
@@ -317,9 +319,48 @@ def seed_database():
         )
 
         session.add_all([quote_1, quote_2])
+
+        # 5. KARIGAR ADVANCES (ઉપાડ)
+        adv_1 = KarigarAdvance(
+            karigar_name="Ramesh Karigar",
+            amount=2000.0,
+            advance_date=date(2026, 10, 18),
+            notes="રવિવાર રોકડ ઉપાડ (Sunday Cash)"
+        )
+        adv_2 = KarigarAdvance(
+            karigar_name="Ramesh Karigar",
+            amount=2500.0,
+            advance_date=date(2026, 10, 22),
+            notes="ઘર ખર્ચ ઉપાડ (Household expense)"
+        )
+        adv_3 = KarigarAdvance(
+            karigar_name="Maheshbhai",
+            amount=3000.0,
+            advance_date=date(2026, 10, 20),
+            notes="તહેવાર ઉપાડ (Festival Advance)"
+        )
+        adv_4 = KarigarAdvance(
+            karigar_name="Udinbhai",
+            amount=3500.0,
+            advance_date=date(2026, 10, 15),
+            notes="દવા ખર્ચ (Medical expense)"
+        )
+        adv_5 = KarigarAdvance(
+            karigar_name="Udinbhai",
+            amount=2000.0,
+            advance_date=date(2026, 10, 24),
+            notes="રોકડ ઉપાડ (Cash advance)"
+        )
+        adv_6 = KarigarAdvance(
+            karigar_name="Bhaveshbhai",
+            amount=2000.0,
+            advance_date=date(2026, 10, 21),
+            notes="રોકડ ઉપાડ (Cash advance)"
+        )
+        session.add_all([adv_1, adv_2, adv_3, adv_4, adv_5, adv_6])
         session.commit()
 
-        print("[Seed Engine] Seeding complete! 4 Parties, 4 Inward Lots, 3 Outward Dispatches, 4 Machine Shifts created.")
+        print("[Seed Engine] Seeding complete! 4 Parties, 4 Inward Lots, 3 Outward Dispatches, 4 Machine Shifts, 6 Karigar Advances created.")
 
 if __name__ == "__main__":
     seed_database()

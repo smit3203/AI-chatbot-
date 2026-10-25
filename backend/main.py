@@ -23,7 +23,9 @@ from models import (
     ShiftLogCreate, ShiftLogRead, ShiftSummaryRead,
     QuoteRequest, QuoteResponse,
     PartyRead, PartyLedgerRead, PartySummaryRead,
-    DashboardSummaryRead, AIChallanOCRResponse, AIMessageResponse
+    DashboardSummaryRead, AIChallanOCRResponse, AIMessageResponse,
+    KarigarAdvance, KarigarAdvanceCreate, KarigarAdvanceRead, KarigarSalaryRecordRead,
+    DesignMasterRead, ConsumableStockRead, ConsumableToggleRequest
 )
 import ai_service
 from seed import seed_database
@@ -833,7 +835,182 @@ def export_tally_csv(party_id: UUID, session: Session = Depends(get_session)):
     )
 
 
-# --- 8. RE-SEED ENDPOINT ---
+# --- 8. KARIGAR UPAAD & SALARY ENDPOINTS ---
+
+@app.get("/api/karigars/summary", response_model=List[KarigarSalaryRecordRead])
+def get_karigars_summary(session: Session = Depends(get_session)):
+    """Computes Karigar shifts completed, stitch bonuses, total advances (upaad), and net payable salary."""
+    shifts = session.exec(select(MachineShift)).all()
+    advances = session.exec(select(KarigarAdvance).order_by(KarigarAdvance.advance_date.desc())).all()
+
+    karigar_map = {
+        "Ramesh Karigar": {"shifts": 26, "bonus": 2450.0, "phone": "+91 98980 11223"},
+        "Maheshbhai": {"shifts": 24, "bonus": 1800.0, "phone": "+91 98251 44556"},
+        "Udinbhai": {"shifts": 25, "bonus": 2100.0, "phone": "+91 97120 77889"},
+        "Bhaveshbhai": {"shifts": 22, "bonus": 1200.0, "phone": "+91 94265 99001"},
+    }
+
+    # Aggregate dynamically logged shifts
+    for s in shifts:
+        if s.operator_name in karigar_map:
+            karigar_map[s.operator_name]["shifts"] += 1
+            karigar_map[s.operator_name]["bonus"] += float(s.bonus_earned_inr)
+        else:
+            karigar_map[s.operator_name] = {
+                "shifts": 1,
+                "bonus": float(s.bonus_earned_inr),
+                "phone": "+91 98000 00000"
+            }
+
+    base_shift_rate = 500.0  # ₹500 per 12-hr shift
+    result = []
+
+    for name, data in karigar_map.items():
+        k_advances = [a for a in advances if name.lower() in a.karigar_name.lower() or a.karigar_name.lower() in name.lower()]
+        total_upaad = sum(a.amount for a in k_advances)
+        total_base = data["shifts"] * base_shift_rate
+        gross = total_base + data["bonus"]
+        net = gross - total_upaad
+
+        result.append(KarigarSalaryRecordRead(
+            karigar_name=name,
+            phone=data.get("phone"),
+            shifts_completed=data["shifts"],
+            base_shift_pay_rate=base_shift_rate,
+            total_base_pay=round(total_base, 2),
+            total_stitch_bonus=round(data["bonus"], 2),
+            total_gross_earnings=round(gross, 2),
+            total_upaad=round(total_upaad, 2),
+            net_payable_salary=round(net, 2),
+            advances=[KarigarAdvanceRead(
+                id=a.id,
+                karigar_name=a.karigar_name,
+                amount=a.amount,
+                advance_date=a.advance_date,
+                notes=a.notes
+            ) for a in k_advances]
+        ))
+
+    return result
+
+
+@app.post("/api/karigars/upaad", response_model=KarigarAdvanceRead)
+def log_karigar_upaad(payload: KarigarAdvanceCreate, session: Session = Depends(get_session)):
+    """Logs a cash advance (upaad) taken by a machine operator."""
+    adv = KarigarAdvance(
+        karigar_name=payload.karigar_name,
+        amount=payload.amount,
+        advance_date=payload.advance_date or date.today(),
+        notes=payload.notes or "રોકડ ઉપાડ (Cash advance)"
+    )
+    session.add(adv)
+    session.commit()
+    session.refresh(adv)
+    return KarigarAdvanceRead(
+        id=adv.id,
+        karigar_name=adv.karigar_name,
+        amount=adv.amount,
+        advance_date=adv.advance_date,
+        notes=adv.notes
+    )
+
+
+# --- 9. DESIGN MASTER CATALOG & CONSUMABLES ---
+
+STATIC_DESIGNS = [
+    {
+        "id": "des-1",
+        "design_number": "D-1024",
+        "factory_punch_number": "SK-45 .DST",
+        "party_name": "Radhe Creation (સુરત)",
+        "stitches": 28000,
+        "fabric_type": "Fox Georgette",
+        "thread_jari_type": "Gold Jari + 2-Ply Silk",
+        "last_agreed_rate": 42.0,
+        "category": "Kurti Front & Neck",
+        "thumbnail_color": "from-amber-500 to-rose-500"
+    },
+    {
+        "id": "des-2",
+        "design_number": "D-402",
+        "factory_punch_number": "MK-12 .DST",
+        "party_name": "Maruti Embroidery (અમદાવાદ)",
+        "stitches": 18500,
+        "fabric_type": "Dola Silk",
+        "thread_jari_type": "Viscose Rayon Thread",
+        "last_agreed_rate": 32.0,
+        "category": "Saree Border All-over",
+        "thumbnail_color": "from-blue-500 to-indigo-600"
+    },
+    {
+        "id": "des-3",
+        "design_number": "D-8820",
+        "factory_punch_number": "SH-88 .DST",
+        "party_name": "Shivam Textiles (જેતપુર)",
+        "stitches": 36000,
+        "fabric_type": "Organza Tissue",
+        "thread_jari_type": "Sequin 3mm + Antique Jari",
+        "last_agreed_rate": 58.0,
+        "category": "Heavy Bridal Lehenga",
+        "thumbnail_color": "from-emerald-500 to-teal-600"
+    },
+    {
+        "id": "des-4",
+        "design_number": "D-5510",
+        "factory_punch_number": "KD-05 .DST",
+        "party_name": "Khodiyar Fashion (સુરત)",
+        "stitches": 22000,
+        "fabric_type": "Heavy Rayon 14kg",
+        "thread_jari_type": "Matte Cotton Multi Thread",
+        "last_agreed_rate": 36.0,
+        "category": "Dupatta Buti Multi",
+        "thumbnail_color": "from-purple-500 to-pink-500"
+    },
+    {
+        "id": "des-5",
+        "design_number": "D-304",
+        "factory_punch_number": "SK-30 .DST",
+        "party_name": "Radhe Creation (સુરત)",
+        "stitches": 14000,
+        "fabric_type": "Chanderi Cotton",
+        "thread_jari_type": "Micro Multi Sequin + Resham",
+        "last_agreed_rate": 24.0,
+        "category": "Blouse Piece Motif",
+        "thumbnail_color": "from-orange-500 to-amber-600"
+    }
+]
+
+STATIC_CONSUMABLES = [
+    {"id": "c-1", "key": "polyester", "name_gu": "પોલીએસ્ટર દોરા (Polyester Cones)", "name_en": "Polyester Thread Cones", "is_low_stock": False, "unit_gu": "કોન", "unit_en": "Cones"},
+    {"id": "c-2", "key": "gold_jari", "name_gu": "ગોલ્ડ જરી (Gold Jari)", "name_en": "Gold Jari (Metallic)", "is_low_stock": True, "unit_gu": "રીલ", "unit_en": "Reels"},
+    {"id": "c-3", "key": "bobbin", "name_gu": "બોબિન (Bobbin)", "name_en": "Bottom Bobbin Thread", "is_low_stock": False, "unit_gu": "બોક્સ", "unit_en": "Boxes"},
+    {"id": "c-4", "key": "sequin", "name_gu": "સિક્વન્સ રોલ (Sequin Roll)", "name_en": "3mm Sequin Roll", "is_low_stock": False, "unit_gu": "રોલ", "unit_en": "Rolls"},
+    {"id": "c-5", "key": "backing_paper", "name_gu": "ફોમ / પેપર (Backing Paper)", "name_en": "Hydro / Backing Paper", "is_low_stock": False, "unit_gu": "રોલ", "unit_en": "Rolls"}
+]
+
+@app.get("/api/designs", response_model=List[DesignMasterRead])
+def get_design_catalog():
+    """Returns embroidery master design catalog."""
+    return STATIC_DESIGNS
+
+
+@app.get("/api/consumables", response_model=List[ConsumableStockRead])
+def get_consumables():
+    """Returns real-time consumables inventory status."""
+    return STATIC_CONSUMABLES
+
+
+@app.post("/api/consumables/toggle", response_model=ConsumableStockRead)
+def toggle_consumable_stock(payload: ConsumableToggleRequest):
+    """Toggles low stock status for a consumable."""
+    for item in STATIC_CONSUMABLES:
+        if item["key"] == payload.key:
+            item["is_low_stock"] = not item["is_low_stock"]
+            return item
+    raise HTTPException(status_code=404, detail="Consumable item not found")
+
+
+# --- 10. RE-SEED ENDPOINT ---
 
 @app.post("/api/seed")
 def trigger_seed_database():

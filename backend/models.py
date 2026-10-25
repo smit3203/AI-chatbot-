@@ -333,3 +333,72 @@ class AIMessageResponse(BaseModel):
     extracted_data: Dict[str, Any]
     action_type: Optional[str] = None
     action_payload: Optional[Dict[str, Any]] = None
+
+
+# --- ADD-ON SECTION MODELS (KARIGAR UPAAD, DESIGN CATALOG & CONSUMABLES) ---
+
+class KarigarAdvance(SQLModel, table=True):
+    __tablename__ = "karigar_advances"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    karigar_name: str = Field(index=True, max_length=100)
+    amount: float = Field(gt=0)
+    advance_date: date = Field(default_factory=date.today)
+    notes: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class KarigarAdvanceCreate(BaseModel):
+    karigar_name: str
+    amount: float
+    advance_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class KarigarAdvanceRead(BaseModel):
+    id: UUID
+    karigar_name: str
+    amount: float
+    advance_date: date
+    notes: Optional[str] = None
+
+
+class KarigarSalaryRecordRead(BaseModel):
+    karigar_name: str
+    phone: Optional[str] = None
+    shifts_completed: int
+    base_shift_pay_rate: float
+    total_base_pay: float
+    total_stitch_bonus: float
+    total_gross_earnings: float
+    total_upaad: float
+    net_payable_salary: float
+    advances: List[KarigarAdvanceRead]
+
+
+class DesignMasterRead(BaseModel):
+    id: str
+    design_number: str
+    factory_punch_number: str
+    party_name: str
+    stitches: int
+    fabric_type: str
+    thread_jari_type: str
+    last_agreed_rate: float
+    category: str
+    thumbnail_color: str
+
+
+class ConsumableStockRead(BaseModel):
+    id: str
+    key: str
+    name_gu: str
+    name_en: str
+    is_low_stock: bool
+    unit_gu: str
+    unit_en: str
+
+
+class ConsumableToggleRequest(BaseModel):
+    key: str
+

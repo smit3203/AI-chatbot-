@@ -230,6 +230,50 @@ export interface AIMessageResponse {
   action_payload?: Record<string, any>;
 }
 
+export interface KarigarAdvance {
+  id: string;
+  karigar_name: string;
+  amount: number;
+  advance_date: string;
+  notes?: string;
+}
+
+export interface KarigarSalaryRecord {
+  karigar_name: string;
+  phone?: string;
+  shifts_completed: number;
+  base_shift_pay_rate: number;
+  total_base_pay: number;
+  total_stitch_bonus: number;
+  total_gross_earnings: number;
+  total_upaad: number;
+  net_payable_salary: number;
+  advances: KarigarAdvance[];
+}
+
+export interface DesignMasterItem {
+  id: string;
+  design_number: string;
+  factory_punch_number: string;
+  party_name: string;
+  stitches: number;
+  fabric_type: string;
+  thread_jari_type: string;
+  last_agreed_rate: number;
+  category: string;
+  thumbnail_color: string;
+}
+
+export interface ConsumableStockItem {
+  id: string;
+  key: string;
+  name_gu: string;
+  name_en: string;
+  is_low_stock: boolean;
+  unit_gu: string;
+  unit_en: string;
+}
+
 // --- CLIENT-SIDE OFFLINE FALLBACK MOCK DATA ---
 
 const MOCK_DASHBOARD: DashboardSummary = {
@@ -631,3 +675,212 @@ export async function fetchPartyLedger(partyId: string): Promise<PartyLedger> {
 export function getTallyExportUrl(partyId: string): string {
   return `${API_BASE_URL}/api/ledger/${partyId}/export-tally`;
 }
+
+// --- ADD-ON SECTION 1, 2, 3 MOCK STORES & METHODS ---
+
+let MOCK_KARIGAR_ADVANCES: KarigarAdvance[] = [
+  { id: "adv-1", karigar_name: "Ramesh Karigar", amount: 2000, advance_date: "2026-10-18", notes: "રવિવાર રોકડ ઉપાડ (Sunday Cash)" },
+  { id: "adv-2", karigar_name: "Ramesh Karigar", amount: 2500, advance_date: "2026-10-22", notes: "ઘર ખર્ચ (Household expense)" },
+  { id: "adv-3", karigar_name: "Maheshbhai", amount: 3000, advance_date: "2026-10-20", notes: "તહેવાર ઉપાડ (Festival Advance)" },
+  { id: "adv-4", karigar_name: "Udinbhai", amount: 3500, advance_date: "2026-10-15", notes: "દવા ખર્ચ (Medical expense)" },
+  { id: "adv-5", karigar_name: "Udinbhai", amount: 2000, advance_date: "2026-10-24", notes: "રોકડ ઉપાડ (Cash advance)" },
+  { id: "adv-6", karigar_name: "Bhaveshbhai", amount: 2000, advance_date: "2026-10-21", notes: "રોકડ ઉપાડ (Cash advance)" },
+];
+
+let MOCK_CONSUMABLES: ConsumableStockItem[] = [
+  { id: "c-1", key: "polyester", name_gu: "પોલીએસ્ટર દોરા (Polyester Cones)", name_en: "Polyester Thread Cones", is_low_stock: false, unit_gu: "કોન", unit_en: "Cones" },
+  { id: "c-2", key: "gold_jari", name_gu: "ગોલ્ડ જરી (Gold Jari)", name_en: "Gold Jari (Metallic)", is_low_stock: true, unit_gu: "રીલ", unit_en: "Reels" },
+  { id: "c-3", key: "bobbin", name_gu: "બોબિન (Bobbin)", name_en: "Bottom Bobbin Thread", is_low_stock: false, unit_gu: "બોક્સ", unit_en: "Boxes" },
+  { id: "c-4", key: "sequin", name_gu: "સિક્વન્સ રોલ (Sequin Roll)", name_en: "3mm Sequin Roll", is_low_stock: false, unit_gu: "રોલ", unit_en: "Rolls" },
+  { id: "c-5", key: "backing_paper", name_gu: "ફોમ / પેપર (Backing Paper)", name_en: "Hydro / Backing Paper", is_low_stock: false, unit_gu: "રોલ", unit_en: "Rolls" },
+];
+
+const MOCK_DESIGNS: DesignMasterItem[] = [
+  {
+    id: "des-1",
+    design_number: "D-1024",
+    factory_punch_number: "SK-45 .DST",
+    party_name: "Radhe Creation (સુરત)",
+    stitches: 28000,
+    fabric_type: "Fox Georgette",
+    thread_jari_type: "Gold Jari + 2-Ply Silk",
+    last_agreed_rate: 42.0,
+    category: "Kurti Front & Neck",
+    thumbnail_color: "from-amber-500 to-rose-500",
+  },
+  {
+    id: "des-2",
+    design_number: "D-402",
+    factory_punch_number: "MK-12 .DST",
+    party_name: "Maruti Embroidery (અમદાવાદ)",
+    stitches: 18500,
+    fabric_type: "Dola Silk",
+    thread_jari_type: "Viscose Rayon Thread",
+    last_agreed_rate: 32.0,
+    category: "Saree Border All-over",
+    thumbnail_color: "from-blue-500 to-indigo-600",
+  },
+  {
+    id: "des-3",
+    design_number: "D-8820",
+    factory_punch_number: "SH-88 .DST",
+    party_name: "Shivam Textiles (જેતપુર)",
+    stitches: 36000,
+    fabric_type: "Organza Tissue",
+    thread_jari_type: "Sequin 3mm + Antique Jari",
+    last_agreed_rate: 58.0,
+    category: "Heavy Bridal Lehenga",
+    thumbnail_color: "from-emerald-500 to-teal-600",
+  },
+  {
+    id: "des-4",
+    design_number: "D-5510",
+    factory_punch_number: "KD-05 .DST",
+    party_name: "Khodiyar Fashion (સુરત)",
+    stitches: 22000,
+    fabric_type: "Heavy Rayon 14kg",
+    thread_jari_type: "Matte Cotton Multi Thread",
+    last_agreed_rate: 36.0,
+    category: "Dupatta Buti Multi",
+    thumbnail_color: "from-purple-500 to-pink-500",
+  },
+  {
+    id: "des-5",
+    design_number: "D-304",
+    factory_punch_number: "SK-30 .DST",
+    party_name: "Radhe Creation (સુરત)",
+    stitches: 14000,
+    fabric_type: "Chanderi Cotton",
+    thread_jari_type: "Micro Multi Sequin + Resham",
+    last_agreed_rate: 24.0,
+    category: "Blouse Piece Motif",
+    thumbnail_color: "from-orange-500 to-amber-600",
+  },
+];
+
+export async function fetchKarigarSalarySummary(): Promise<KarigarSalaryRecord[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/karigars/summary`);
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error("Backend unavailable");
+  } catch (err) {
+    // Client-side fallback calculation from shift logs + upaad advances
+    const shiftsSum = await fetchShiftsSummary();
+    const karigarMap: Record<string, { shifts: number; bonus: number }> = {
+      "Ramesh Karigar": { shifts: 26, bonus: 2450 },
+      "Maheshbhai": { shifts: 24, bonus: 1800 },
+      "Udinbhai": { shifts: 25, bonus: 2100 },
+      "Bhaveshbhai": { shifts: 22, bonus: 1200 },
+    };
+
+    // Factor dynamic shifts logged
+    shiftsSum.shifts.forEach((s) => {
+      if (!karigarMap[s.operator_name]) {
+        karigarMap[s.operator_name] = { shifts: 1, bonus: s.bonus_earned_inr };
+      }
+    });
+
+    const baseShiftPayRate = 500; // Standard 12-hr embroidery shift wage in Surat
+
+    return Object.keys(karigarMap).map((kName) => {
+      const data = karigarMap[kName];
+      const advances = MOCK_KARIGAR_ADVANCES.filter(
+        (a) => a.karigar_name.toLowerCase().includes(kName.toLowerCase()) || kName.toLowerCase().includes(a.karigar_name.toLowerCase())
+      );
+      const totalUpaad = advances.reduce((acc, curr) => acc + curr.amount, 0);
+      const totalBasePay = data.shifts * baseShiftPayRate;
+      const totalGross = totalBasePay + data.bonus;
+      const netPayable = totalGross - totalUpaad;
+
+      return {
+        karigar_name: kName,
+        phone: "+91 98980 11223",
+        shifts_completed: data.shifts,
+        base_shift_pay_rate: baseShiftPayRate,
+        total_base_pay: totalBasePay,
+        total_stitch_bonus: data.bonus,
+        total_gross_earnings: totalGross,
+        total_upaad: totalUpaad,
+        net_payable_salary: netPayable,
+        advances,
+      };
+    });
+  }
+}
+
+export async function logKarigarAdvance(payload: {
+  karigar_name: string;
+  amount: number;
+  advance_date?: string;
+  notes?: string;
+}): Promise<KarigarAdvance> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/karigars/upaad`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // Fallback
+  }
+  const newAdv: KarigarAdvance = {
+    id: `adv-${Date.now()}`,
+    karigar_name: payload.karigar_name,
+    amount: payload.amount,
+    advance_date: payload.advance_date || new Date().toISOString().split("T")[0],
+    notes: payload.notes || "રોકડ ઉપાડ (Cash Advance)",
+  };
+  MOCK_KARIGAR_ADVANCES = [newAdv, ...MOCK_KARIGAR_ADVANCES];
+  return newAdv;
+}
+
+export async function fetchDesignCatalog(): Promise<DesignMasterItem[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/designs`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // Fallback
+  }
+  return MOCK_DESIGNS;
+}
+
+export async function fetchConsumablesStock(): Promise<ConsumableStockItem[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/consumables`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // Fallback
+  }
+  return MOCK_CONSUMABLES;
+}
+
+export async function toggleConsumableStock(key: string): Promise<ConsumableStockItem> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/consumables/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    // Fallback
+  }
+  const item = MOCK_CONSUMABLES.find((c) => c.key === key);
+  if (item) {
+    item.is_low_stock = !item.is_low_stock;
+    return { ...item };
+  }
+  return MOCK_CONSUMABLES[0];
+}
+

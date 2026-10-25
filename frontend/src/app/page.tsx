@@ -27,6 +27,13 @@ import {
   TrendingUp,
   Cpu,
   Sparkles,
+  Palette,
+  QrCode,
+  Wallet,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Check,
 } from "lucide-react";
 
 import {
@@ -45,6 +52,10 @@ import {
   QuoteResult,
   PartyLedger,
   ExtractedChallanData,
+  KarigarAdvance,
+  KarigarSalaryRecord,
+  DesignMasterItem,
+  ConsumableStockItem,
   fetchHealth,
   fetchDashboardSummary,
   fetchPendingLots,
@@ -58,6 +69,11 @@ import {
   fetchParties,
   fetchPartyLedger,
   getTallyExportUrl,
+  fetchKarigarSalarySummary,
+  logKarigarAdvance,
+  fetchDesignCatalog,
+  fetchConsumablesStock,
+  toggleConsumableStock,
 } from "@/lib/api";
 
 export default function Home() {
@@ -93,6 +109,106 @@ export default function Home() {
     } catch (e) {
       console.warn("Using offline fallback:", e);
     }
+  };
+
+  // -------------------------------------------------------------
+  // FACTORY EXPANSION ADD-ONS STATE (SECTIONS 1, 2, 3, 4, 5)
+  // -------------------------------------------------------------
+  // Add-on 1: Karigar Upaad & Salary
+  const [tab3SubTab, setTab3SubTab] = useState<"calculator" | "shifts" | "karigar">("calculator");
+  const [karigarsSalary, setKarigarsSalary] = useState<KarigarSalaryRecord[]>([]);
+  const [upaadModalOpen, setUpaadModalOpen] = useState(false);
+  const [upaadForm, setUpaadForm] = useState({
+    karigar_name: "Ramesh Karigar",
+    amount: 1500,
+    advance_date: new Date().toISOString().split("T")[0],
+    notes: "રવિવાર રોકડ ઉપાડ (Sunday Cash)",
+  });
+
+  // Add-on 2: Visual Design Master Catalog
+  const [designGalleryOpen, setDesignGalleryOpen] = useState(false);
+  const [designCatalog, setDesignCatalog] = useState<DesignMasterItem[]>([]);
+  const [designSearch, setDesignSearch] = useState("");
+
+  // Add-on 3: Consumables Quick Alert Bar
+  const [consumables, setConsumables] = useState<ConsumableStockItem[]>([]);
+  const [consumablesExpanded, setConsumablesExpanded] = useState(true);
+
+  // Add-on 4: GST 5% Job-Work Toggle
+  const [isGstBill, setIsGstBill] = useState(false);
+
+  // Add-on 5: Floating Speed Action Menu
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+
+  useEffect(() => {
+    loadAddonData();
+  }, []);
+
+  const loadAddonData = async () => {
+    try {
+      const [kData, dData, cData] = await Promise.all([
+        fetchKarigarSalarySummary(),
+        fetchDesignCatalog(),
+        fetchConsumablesStock(),
+      ]);
+      setKarigarsSalary(kData);
+      setDesignCatalog(dData);
+      setConsumables(cData);
+    } catch (e) {
+      console.warn("Error loading add-on data:", e);
+    }
+  };
+
+  const handleSaveUpaad = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await logKarigarAdvance({
+        karigar_name: upaadForm.karigar_name,
+        amount: Number(upaadForm.amount),
+        advance_date: upaadForm.advance_date,
+        notes: upaadForm.notes,
+      });
+      showToast("રોકડ ઉપાડ સફળતાપૂર્વક નોંધાઈ ગયો! (Advance logged)", "success");
+      setUpaadModalOpen(false);
+      const updatedSalaries = await fetchKarigarSalarySummary();
+      setKarigarsSalary(updatedSalaries);
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleToggleConsumableItem = async (key: string) => {
+    try {
+      const updated = await toggleConsumableStock(key);
+      setConsumables((prev) =>
+        prev.map((c) => (c.key === key ? { ...c, is_low_stock: updated.is_low_stock } : c))
+      );
+      showToast(
+        updated.is_low_stock
+          ? `⚠️ એલર્ટ: ${key} સ્ટોક ખૂટે છે!`
+          : `✅ ${key} સ્ટોક સામાન્ય (In Stock) છે.`,
+        updated.is_low_stock ? "error" : "success"
+      );
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleQuoteDesign = (design: DesignMasterItem) => {
+    const updated = {
+      ...calcInputs,
+      stitch_count: design.stitches,
+      material_cost_per_piece: Math.round(design.last_agreed_rate * 0.35),
+    };
+    setCalcInputs(updated);
+    recalcQuote(updated);
+    setActiveTab("calculator");
+    setTab3SubTab("calculator");
+    setDesignGalleryOpen(false);
+    showToast(
+      `ડીઝાઇન ${design.design_number} (${design.stitches.toLocaleString()} ટાંકા) કેલ્ક્યુલેટરમાં સેટ થઈ ગઈ!`,
+      "success"
+    );
   };
 
   // -------------------------------------------------------------
@@ -496,6 +612,16 @@ export default function Home() {
               <span>{health?.database_engine.includes("NEON") ? t.databaseNeon : t.databaseSqlite}</span>
             </div>
 
+            {/* Design Master Catalog Button */}
+            <button
+              onClick={() => setDesignGalleryOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-all shadow-sm"
+              title={t.btnDesignCatalog}
+            >
+              <Palette className="w-3.5 h-3.5 text-purple-600" />
+              <span className="hidden sm:inline">{t.btnDesignCatalog}</span>
+            </button>
+
             {/* Language Switch */}
             <button
               onClick={() => setLang(lang === "gu" ? "en" : "gu")}
@@ -738,6 +864,106 @@ export default function Home() {
         {/* ========================================================= */}
         {activeTab === "pending" && (
           <div className="space-y-4">
+            {/* ADD-ON SECTION 3: 🧵 દોરા અને જરી સ્ટોક એલર્ટ (CONSUMABLES STATUS BAR) */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-50 via-white to-amber-50/30 flex items-center justify-between gap-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0">
+                    🧵
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>{t.consumablesTitle}</span>
+                      {consumables.filter((c) => c.is_low_stock).length > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
+                          🔴 {consumables.filter((c) => c.is_low_stock).length} {t.stockAlertCountBadge}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          {t.stockInStock}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium">
+                      {t.consumablesSubtitle}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* WhatsApp Order Button for Low Stock */}
+                  {consumables.filter((c) => c.is_low_stock).length > 0 && (
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(
+                        `*શ્રી કૃષ્ણ એમ્બ્રોઇડરી - તાત્કાલિક સ્ટોક ઓર્ડર*\n\nનીચેની વસ્તુઓ તાત્કાલિક ફેક્ટરીમાં ખૂટે છે:\n${consumables
+                          .filter((c) => c.is_low_stock)
+                          .map((c) => `• ${lang === "gu" ? c.name_gu : c.name_en}`)
+                          .join("\n")}\n\nકૃપા કરીને સવારે વહેલા ટેમ્પોથી મોકલી આપવા વિનંતી.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#25d366] hover:bg-[#128c7e] text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>{t.btnSendVendorAlert}</span>
+                    </a>
+                  )}
+
+                  <button
+                    onClick={() => setConsumablesExpanded(!consumablesExpanded)}
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors"
+                  >
+                    {consumablesExpanded ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {consumablesExpanded && (
+                <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 bg-slate-50/50">
+                  {consumables.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleToggleConsumableItem(item.key)}
+                      className={`text-left p-2.5 rounded-xl border transition-all flex flex-col justify-between shadow-xs hover:shadow-sm ${
+                        item.is_low_stock
+                          ? "bg-rose-50/80 border-rose-300 hover:border-rose-400"
+                          : "bg-white border-slate-200 hover:border-emerald-300"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1 mb-1.5">
+                        <span className="text-xs font-bold text-slate-800 leading-tight">
+                          {lang === "gu" ? item.name_gu : item.name_en}
+                        </span>
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${
+                            item.is_low_stock ? "bg-rose-500 animate-ping" : "bg-emerald-500"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span
+                          className={`font-black px-1.5 py-0.5 rounded ${
+                            item.is_low_stock
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {item.is_low_stock ? t.stockLow : t.stockInStock}
+                        </span>
+                        <span className="text-slate-400 font-mono">
+                          {lang === "gu" ? item.unit_gu : item.unit_en}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Top 4 KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -821,6 +1047,14 @@ export default function Home() {
                     {f.label}
                   </button>
                 ))}
+
+                <button
+                  onClick={() => setDesignGalleryOpen(true)}
+                  className="px-3 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 shadow-xs"
+                >
+                  <Palette className="w-3.5 h-3.5 text-purple-600" />
+                  <span>{t.btnDesignCatalog}</span>
+                </button>
               </div>
             </div>
 
@@ -952,8 +1186,46 @@ export default function Home() {
         {/* TAB 3: STITCH COSTING & SHIFT TRACKER                     */}
         {/* ========================================================= */}
         {activeTab === "calculator" && (
-          <div className="space-y-6">
-            {/* SECTION A: STITCH-TO-PROFIT PRICING CALCULATOR */}
+          <div className="space-y-5">
+            {/* SUB-TAB CONTROLLER FOR TAB 3 */}
+            <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {[
+                  { id: "calculator", label: t.subTabCalc, icon: Calculator },
+                  { id: "shifts", label: t.subTabShifts, icon: Clock },
+                  { id: "karigar", label: t.subTabKarigar, icon: User },
+                ].map((st) => {
+                  const Icon = st.icon;
+                  const isActive = tab3SubTab === st.id;
+                  return (
+                    <button
+                      key={st.id}
+                      onClick={() => setTab3SubTab(st.id as any)}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+                        isActive
+                          ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                          : "bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{st.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Design Catalog Shortcut in Tab 3 */}
+              <button
+                onClick={() => setDesignGalleryOpen(true)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <Palette className="w-3.5 h-3.5 text-purple-600" />
+                <span>{t.btnDesignCatalog}</span>
+              </button>
+            </div>
+
+            {/* SUB-TAB 1: STITCH-TO-PROFIT PRICING CALCULATOR */}
+            {tab3SubTab === "calculator" && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -1071,8 +1343,10 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* SECTION B: MACHINE LCD SHIFTS & BONUS LOG */}
+            {/* SUB-TAB 2: MACHINE LCD SHIFTS & BONUS LOG */}
+            {tab3SubTab === "shifts" && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div>
@@ -1152,6 +1426,153 @@ export default function Home() {
                 </table>
               </div>
             </div>
+            )}
+
+            {/* SUB-TAB 3: 👷 કારીગર ઉપાડ અને પગાર ખાતું (KARIGAR UPAAD & MONTHLY SALARY TRACKER) */}
+            {tab3SubTab === "karigar" && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <User className="w-5 h-5 text-amber-600" />
+                        <span>{t.karigarTitle}</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {t.karigarSubtitle}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setUpaadModalOpen(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 w-fit"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{t.btnLogUpaad}</span>
+                    </button>
+                  </div>
+
+                  {/* Karigar KPI Summary Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase">કુલ કારીગરો</p>
+                      <p className="text-2xl font-black text-slate-900 font-mono mt-1">
+                        {karigarsSalary.length} <span className="text-xs font-normal">ઓપરેટર</span>
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200">
+                      <p className="text-[11px] font-bold text-blue-700 uppercase">કુલ ભરેલી શિફ્ટ</p>
+                      <p className="text-2xl font-black text-blue-900 font-mono mt-1">
+                        {karigarsSalary.reduce((a, c) => a + c.shifts_completed, 0)} <span className="text-xs font-normal">શિફ્ટ</span>
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200">
+                      <p className="text-[11px] font-bold text-rose-700 uppercase">{t.tblTotalUpaad}</p>
+                      <p className="text-2xl font-black text-rose-800 font-mono mt-1">
+                        ₹{karigarsSalary.reduce((a, c) => a + c.total_upaad, 0).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-300">
+                      <p className="text-[11px] font-extrabold text-emerald-800 uppercase">{t.tblNetPayable}</p>
+                      <p className="text-2xl font-black text-emerald-900 font-mono mt-1">
+                        ₹{karigarsSalary.reduce((a, c) => a + c.net_payable_salary, 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Karigar Salary Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-3">{t.tblKarigarName}</th>
+                          <th className="p-3 text-center">{t.tblShiftsCompleted}</th>
+                          <th className="p-3">{t.tblBasePay}</th>
+                          <th className="p-3 text-emerald-700">{t.tblBonusEarned}</th>
+                          <th className="p-3 font-bold">{t.tblGrossEarnings}</th>
+                          <th className="p-3 text-rose-700 font-bold">{t.tblTotalUpaad}</th>
+                          <th className="p-3 text-emerald-800 font-black">{t.tblNetPayable}</th>
+                          <th className="p-3 text-center">{t.tblAction}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono">
+                        {karigarsSalary.map((k, idx) => {
+                          const whatsappSlipText = `*શ્રી કૃષ્ણ એમ્બ્રોઇડરી - કારીગર માસિક પગાર સ્લિપ*\n\nકારીગર: ${k.karigar_name}\nકુલ શિફ્ટ: ${k.shifts_completed} (રૂ. ${k.total_base_pay.toLocaleString()})\nસ્ટીચ બોનસ: રૂ. ${k.total_stitch_bonus.toLocaleString()}\nકુલ કમાણી: રૂ. ${k.total_gross_earnings.toLocaleString()}\nકુલ રોકડ ઉપાડ: -રૂ. ${k.total_upaad.toLocaleString()}\n--------------------------------\n*ચૂકવવાપાત્ર ચોખ્ખો પગાર: રૂ. ${k.net_payable_salary.toLocaleString()}*\n--------------------------------\nતારીખ: ${new Date().toLocaleDateString("en-GB")}\n*સુપરવાઇઝર સહી સાથે સ્વીકારેલ.*`;
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="p-3 font-sans">
+                                <span className="font-bold text-slate-900 block">{k.karigar_name}</span>
+                                <span className="text-[10px] text-slate-400">{k.phone}</span>
+                              </td>
+                              <td className="p-3 text-center font-bold text-slate-800">
+                                {k.shifts_completed}
+                              </td>
+                              <td className="p-3 font-bold text-slate-700">
+                                ₹{k.total_base_pay.toLocaleString()}
+                                <span className="block text-[9px] text-slate-400 font-normal">(@₹{k.base_shift_pay_rate}/shift)</span>
+                              </td>
+                              <td className="p-3 font-bold text-emerald-600">
+                                +₹{k.total_stitch_bonus.toLocaleString()}
+                              </td>
+                              <td className="p-3 font-bold text-slate-900">
+                                ₹{k.total_gross_earnings.toLocaleString()}
+                              </td>
+                              <td className="p-3 font-bold text-rose-600 bg-rose-50/40">
+                                -₹{k.total_upaad.toLocaleString()}
+                              </td>
+                              <td className="p-3">
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black text-sm border border-emerald-200 inline-block">
+                                  ₹{k.net_payable_salary.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center font-sans">
+                                <a
+                                  href={`https://wa.me/?text=${encodeURIComponent(whatsappSlipText)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#25d366] hover:bg-[#128c7e] text-white rounded-lg text-[11px] font-bold transition-colors shadow-xs"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                  <span>WhatsApp સ્લિપ</span>
+                                </a>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Recent Cash Advance Vouchers */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Wallet className="w-4 h-4 text-amber-600" />
+                    <span>{t.recentUpaadTitle}</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {karigarsSalary
+                      .flatMap((k) => k.advances)
+                      .slice(0, 6)
+                      .map((adv) => (
+                        <div key={adv.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-bold text-slate-900 block">{adv.karigar_name}</span>
+                            <span className="text-[10px] text-slate-400">{adv.advance_date} • {adv.notes}</span>
+                          </div>
+                          <span className="font-bold font-mono text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                            -₹{adv.amount.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1214,6 +1635,58 @@ export default function Home() {
               </div>
             </div>
 
+            {/* ADD-ON SECTION 4: 🧾 GST 5% JOB-WORK TOGGLE SWITCH */}
+            <div className="no-print bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-bold text-slate-700 whitespace-nowrap">બિલ પ્રકાર (Bill Type):</span>
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setIsGstBill(false)}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                      !isGstBill
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    {t.gstToggleEstimate}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsGstBill(true)}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                      isGstBill
+                        ? "bg-amber-500 text-white shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <span>{t.gstToggleGst}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-600 text-white font-mono">
+                      HSN 998821
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {isGstBill ? (
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <span className="text-slate-500">
+                    CGST (2.5%): <strong className="text-slate-800">₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 0.025).toFixed(2)}</strong>
+                  </span>
+                  <span className="text-slate-500">
+                    SGST (2.5%): <strong className="text-slate-800">₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 0.025).toFixed(2)}</strong>
+                  </span>
+                  <span className="bg-amber-50 text-amber-900 font-bold px-2.5 py-1 rounded-lg border border-amber-200">
+                    GST સહિત કુલ: ₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 1.05).toLocaleString()}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-slate-500 italic">
+                  * કાચો હિસાબ સ્લિપ (Zero Tax Estimate Voucher)
+                </span>
+              )}
+            </div>
+
             {/* PRINTABLE A4 LEDGER CONTAINER */}
             <div className="printable-a4-ledger bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 shadow-md space-y-6">
               {/* Print Header */}
@@ -1231,12 +1704,17 @@ export default function Home() {
                 </div>
 
                 <div className="text-right">
-                  <span className="inline-block bg-slate-900 text-white text-xs font-bold px-3 py-1 rounded">
-                    ખાતાવહી ઓડિટ સ્લિપ
+                  <span className={`inline-block text-white text-xs font-bold px-3 py-1 rounded ${isGstBill ? "bg-amber-600" : "bg-slate-900"}`}>
+                    {isGstBill ? "પાકું GST બિલ (TAX INVOICE)" : "ખાતાવહી ઓડિટ સ્લિપ (ESTIMATE)"}
                   </span>
                   <p className="text-xs text-slate-500 font-mono mt-1">
                     તારીખ: {new Date().toLocaleDateString("en-GB")}
                   </p>
+                  {isGstBill && (
+                    <p className="text-[10px] text-amber-800 font-mono font-bold mt-0.5">
+                      HSN / SAC: 998821 (Embroidery Job-Work)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1263,12 +1741,25 @@ export default function Home() {
                   <span className="text-[9px] text-emerald-600">{t.ledgerReturnedRawNote}</span>
                 </div>
 
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-300">
-                  <p className="text-[10px] text-amber-800 uppercase font-extrabold">{t.ledgerNetPayable}</p>
-                  <p className="text-xl font-black text-amber-900 mt-0.5 font-mono">
-                    ₹{partyLedger?.summary.total_billable_amount_inr.toLocaleString()}
-                  </p>
-                </div>
+                {isGstBill ? (
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-300">
+                    <p className="text-[10px] text-amber-800 uppercase font-extrabold">{t.gstTotalWithTax}</p>
+                    <p className="text-xl font-black text-amber-900 mt-0.5 font-mono">
+                      ₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 1.05).toLocaleString()}
+                    </p>
+                    <span className="text-[9px] text-amber-700 font-mono">
+                      મૂળ રકમ ₹{(partyLedger?.summary.total_billable_amount_inr || 0).toLocaleString()} + 5% GST (₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 0.05).toFixed(2)})
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-300">
+                    <p className="text-[10px] text-amber-800 uppercase font-extrabold">{t.ledgerNetPayable}</p>
+                    <p className="text-xl font-black text-amber-900 mt-0.5 font-mono">
+                      ₹{partyLedger?.summary.total_billable_amount_inr.toLocaleString()}
+                    </p>
+                    <span className="text-[9px] text-slate-500">બિન-જીએસટી ચોખ્ખી રકમ</span>
+                  </div>
+                )}
               </div>
 
               {/* Dual Reconciliation Itemized Table */}
@@ -1346,7 +1837,104 @@ export default function Home() {
                         </tr>
                       ))}
                     </tbody>
+                    {isGstBill && (
+                      <tfoot className="bg-slate-50 font-mono text-xs border-t-2 border-slate-400">
+                        <tr>
+                          <td colSpan={8} className="p-2 text-right font-bold border border-slate-300">{t.gstTaxableSubtotal}</td>
+                          <td colSpan={2} className="p-2 font-bold text-slate-900 border border-slate-300">₹{(partyLedger?.summary.total_billable_amount_inr || 0).toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={8} className="p-2 text-right text-slate-600 border border-slate-300">CGST (2.5%) - HSN 998821:</td>
+                          <td colSpan={2} className="p-2 text-slate-800 border border-slate-300">₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 0.025).toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={8} className="p-2 text-right text-slate-600 border border-slate-300">SGST (2.5%) - HSN 998821:</td>
+                          <td colSpan={2} className="p-2 text-slate-800 border border-slate-300">₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 0.025).toFixed(2)}</td>
+                        </tr>
+                        <tr className="bg-amber-100/70 font-extrabold text-amber-900">
+                          <td colSpan={8} className="p-2 text-right border border-slate-400">{t.gstTotalWithTax}</td>
+                          <td colSpan={2} className="p-2 text-sm border border-slate-400">₹{((partyLedger?.summary.total_billable_amount_inr || 0) * 1.05).toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
+                </div>
+              </div>
+
+              {/* ADD-ON SECTION 4: FACTORY PAYMENT SUMMARY BOX & UPI QR CODE */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-300 bg-slate-50/70">
+                {/* Bank Account Details */}
+                <div className="space-y-1.5 text-xs text-slate-700">
+                  <h5 className="font-bold text-slate-900 flex items-center gap-1.5 pb-1 border-b border-slate-200">
+                    <Building className="w-4 h-4 text-amber-600" />
+                    <span>{t.bankDetailsTitle}</span>
+                  </h5>
+                  <p><strong className="text-slate-900">બેંકનું નામ:</strong> HDFC Bank (વરાછા રોડ શાખા, સુરત)</p>
+                  <p><strong className="text-slate-900">ખાતાધારક:</strong> Shree Krishna Embroidery</p>
+                  <p><strong className="text-slate-900">કરન્ટ ખાતા નં:</strong> <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-slate-300">50200089234120</span></p>
+                  <p><strong className="text-slate-900">IFSC કોડ:</strong> <span className="font-mono font-bold">HDFC0001234</span></p>
+                  <p><strong className="text-slate-900">શાખા:</strong> પ્લોટ નં. ૪૫, એમ્બ્રોઇડરી પાર્ક, વરાછા, સુરત - ૩૯૫૦૦૬</p>
+                </div>
+
+                {/* Scan-to-Pay UPI QR Code */}
+                <div className="flex items-center justify-between sm:justify-start gap-4 p-3 bg-white rounded-xl border border-slate-300">
+                  {/* Clean Vector SVG QR Code */}
+                  <div className="w-24 h-24 shrink-0 bg-white p-1 rounded-lg border border-slate-200 flex items-center justify-center shadow-xs">
+                    <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900 fill-current">
+                      {/* Top-left Finder */}
+                      <rect x="5" y="5" width="28" height="28" rx="4" fill="#0f172a" />
+                      <rect x="9" y="9" width="20" height="20" rx="2" fill="#ffffff" />
+                      <rect x="13" y="13" width="12" height="12" rx="1" fill="#0f172a" />
+                      {/* Top-right Finder */}
+                      <rect x="67" y="5" width="28" height="28" rx="4" fill="#0f172a" />
+                      <rect x="71" y="9" width="20" height="20" rx="2" fill="#ffffff" />
+                      <rect x="75" y="13" width="12" height="12" rx="1" fill="#0f172a" />
+                      {/* Bottom-left Finder */}
+                      <rect x="5" y="67" width="28" height="28" rx="4" fill="#0f172a" />
+                      <rect x="9" y="71" width="20" height="20" rx="2" fill="#ffffff" />
+                      <rect x="13" y="75" width="12" height="12" rx="1" fill="#0f172a" />
+                      {/* Data Dots */}
+                      <rect x="38" y="8" width="6" height="6" fill="#0f172a" />
+                      <rect x="48" y="14" width="6" height="6" fill="#0f172a" />
+                      <rect x="56" y="8" width="6" height="6" fill="#0f172a" />
+                      <rect x="38" y="24" width="6" height="6" fill="#0f172a" />
+                      <rect x="48" y="28" width="6" height="6" fill="#0f172a" />
+                      <rect x="8" y="38" width="6" height="6" fill="#0f172a" />
+                      <rect x="20" y="44" width="6" height="6" fill="#0f172a" />
+                      <rect x="8" y="54" width="6" height="6" fill="#0f172a" />
+                      <rect x="26" y="52" width="6" height="6" fill="#0f172a" />
+                      <rect x="38" y="42" width="24" height="24" rx="4" fill="#f59e0b" />
+                      <text x="50" y="58" fontSize="14" fontWeight="bold" textAnchor="middle" fill="#ffffff">₹</text>
+                      <rect x="68" y="38" width="6" height="6" fill="#0f172a" />
+                      <rect x="84" y="44" width="6" height="6" fill="#0f172a" />
+                      <rect x="74" y="54" width="6" height="6" fill="#0f172a" />
+                      <rect x="90" y="52" width="6" height="6" fill="#0f172a" />
+                      <rect x="38" y="72" width="6" height="6" fill="#0f172a" />
+                      <rect x="48" y="78" width="6" height="6" fill="#0f172a" />
+                      <rect x="58" y="72" width="6" height="6" fill="#0f172a" />
+                      <rect x="68" y="82" width="6" height="6" fill="#0f172a" />
+                      <rect x="80" y="74" width="6" height="6" fill="#0f172a" />
+                      <rect x="76" y="88" width="6" height="6" fill="#0f172a" />
+                      <rect x="88" y="86" width="6" height="6" fill="#0f172a" />
+                      <rect x="44" y="88" width="6" height="6" fill="#0f172a" />
+                    </svg>
+                  </div>
+
+                  <div className="text-xs space-y-1">
+                    <div className="flex items-center gap-1 text-slate-900 font-bold">
+                      <QrCode className="w-4 h-4 text-emerald-600" />
+                      <span>{t.upiPaymentTitle}</span>
+                    </div>
+                    <p className="text-[11px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      shreekrishna.embroidery@okaxis
+                    </p>
+                    <p className="text-[11px] font-bold text-emerald-700 font-mono">
+                      કુલ ચૂકવવાપાત્ર: ₹{(isGstBill ? (partyLedger?.summary.total_billable_amount_inr || 0) * 1.05 : (partyLedger?.summary.total_billable_amount_inr || 0)).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {t.upiScanNotice}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1805,6 +2393,322 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* ========================================================= */}
+      {/* MODAL 5: 🎨 VISUAL DESIGN MASTER CATALOG MODAL            */}
+      {/* ========================================================= */}
+      {designGalleryOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-bold text-base sm:text-lg text-slate-900 flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-purple-600" />
+                  <span>{t.designModalTitle}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {t.designModalSubtitle}
+                </p>
+              </div>
+              <button
+                onClick={() => setDesignGalleryOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={designSearch}
+                onChange={(e) => setDesignSearch(e.target.value)}
+                placeholder="ડીઝાઇન નંબર, પંચિંગ કોડ (.DST), પાર્ટી અથવા કાપડ શોધો..."
+                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            {/* Design Cards Grid */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pr-1">
+              {designCatalog
+                .filter(
+                  (d) =>
+                    !designSearch.trim() ||
+                    d.design_number.toLowerCase().includes(designSearch.toLowerCase()) ||
+                    d.factory_punch_number.toLowerCase().includes(designSearch.toLowerCase()) ||
+                    d.party_name.toLowerCase().includes(designSearch.toLowerCase()) ||
+                    d.fabric_type.toLowerCase().includes(designSearch.toLowerCase())
+                )
+                .map((design) => (
+                  <div
+                    key={design.id}
+                    className="border border-slate-200 hover:border-purple-400 rounded-2xl p-4 bg-white hover:shadow-md transition-all flex flex-col justify-between space-y-3 group"
+                  >
+                    {/* Thumbnail Badge & Category */}
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                          {design.category}
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          {design.stitches.toLocaleString()} ટાંકા
+                        </span>
+                      </div>
+
+                      {/* Pattern Preview Box */}
+                      <div
+                        className={`h-20 rounded-xl bg-gradient-to-tr ${design.thumbnail_color} p-3 flex flex-col justify-between text-white shadow-inner relative overflow-hidden`}
+                      >
+                        <div className="absolute -right-4 -bottom-4 opacity-20 text-5xl font-mono font-black">
+                          DST
+                        </div>
+                        <div className="flex justify-between items-start z-10">
+                          <span className="text-lg font-black tracking-tight">{design.design_number}</span>
+                          <span className="text-[10px] font-mono bg-black/30 backdrop-blur-xs px-2 py-0.5 rounded font-bold">
+                            {design.factory_punch_number}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium opacity-90 truncate z-10">{design.party_name}</p>
+                      </div>
+
+                      {/* Design Specs */}
+                      <div className="space-y-1 pt-2.5 text-xs">
+                        <div className="flex justify-between text-slate-600">
+                          <span className="text-slate-400">{t.designFabric}</span>
+                          <span className="font-semibold text-slate-800">{design.fabric_type}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span className="text-slate-400">{t.designThread}</span>
+                          <span className="font-semibold text-slate-800 truncate max-w-[150px]">{design.thread_jari_type}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span className="text-slate-400">{t.designAgreedRate}</span>
+                          <span className="font-bold text-emerald-700 font-mono">₹{design.last_agreed_rate}/pc</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action: 🧮 આ ડિઝાઇનનો ભાવ ગણો */}
+                    <button
+                      onClick={() => handleQuoteDesign(design)}
+                      className="w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                      <span>{t.btnCalcThisDesign}</span>
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 6: 💸 LOG KARIGAR CASH ADVANCE (ઉપાડ) MODAL          */}
+      {/* ========================================================= */}
+      {upaadModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-amber-600" />
+                <span>{t.upaadModalTitle}</span>
+              </h3>
+              <button
+                onClick={() => setUpaadModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUpaad} className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  {t.upaadKarigarSelect}
+                </label>
+                <select
+                  value={upaadForm.karigar_name}
+                  onChange={(e) => setUpaadForm({ ...upaadForm, karigar_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                >
+                  {karigarsSalary.map((k) => (
+                    <option key={k.karigar_name} value={k.karigar_name}>
+                      {k.karigar_name} (બાકી લેવાના: ₹{k.net_payable_salary.toLocaleString()})
+                    </option>
+                  ))}
+                  <option value="Ramesh Karigar">Ramesh Karigar</option>
+                  <option value="Maheshbhai">Maheshbhai</option>
+                  <option value="Udinbhai">Udinbhai</option>
+                  <option value="Bhaveshbhai">Bhaveshbhai</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {t.upaadAmount}
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={100}
+                    step={100}
+                    value={upaadForm.amount}
+                    onChange={(e) => setUpaadForm({ ...upaadForm, amount: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-rose-300 bg-rose-50 rounded-xl font-bold font-mono text-rose-800 text-sm focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {t.upaadDate}
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={upaadForm.advance_date}
+                    onChange={(e) => setUpaadForm({ ...upaadForm, advance_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  {t.upaadNotes}
+                </label>
+                <input
+                  type="text"
+                  value={upaadForm.notes}
+                  onChange={(e) => setUpaadForm({ ...upaadForm, notes: e.target.value })}
+                  placeholder="દા.ત. રવિવાર રોકડ ઉપાડ, તહેવાર ખર્ચ..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20"
+                >
+                  {t.btnSaveUpaad}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUpaadModalOpen(false)}
+                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                >
+                  {t.btnCancel}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* ADD-ON SECTION 5: ⚡ FLOATING SPEED ACTION BUTTON & MENU   */}
+      {/* ========================================================= */}
+      <div className="fixed bottom-6 right-6 z-40 no-print flex flex-col items-end gap-3">
+        {/* Backdrop for speed menu */}
+        {speedMenuOpen && (
+          <div
+            onClick={() => setSpeedMenuOpen(false)}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30"
+          />
+        )}
+
+        {/* Speed Action Items */}
+        {speedMenuOpen && (
+          <div className="relative z-40 flex flex-col items-end gap-2.5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-200">
+            {/* Action 1: Snap Challan in AI Bot */}
+            <button
+              onClick={() => {
+                setSpeedMenuOpen(false);
+                setActiveTab("bot");
+                setTimeout(() => fileInputRef.current?.click(), 300);
+              }}
+              className="flex items-center gap-2.5 px-4 py-2.5 bg-white hover:bg-amber-50 rounded-2xl border border-amber-300 shadow-xl text-xs font-bold text-slate-900 hover:text-amber-800 transition-all hover:scale-105 group"
+            >
+              <span>{t.speedSnapChallan}</span>
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md">
+                <Camera className="w-4 h-4" />
+              </div>
+            </button>
+
+            {/* Action 2: Quick Outward Dispatch */}
+            <button
+              onClick={() => {
+                setSpeedMenuOpen(false);
+                setActiveTab("pending");
+                if (pendingLots.length > 0) {
+                  handleOpenDispatch(pendingLots[0]);
+                }
+              }}
+              className="flex items-center gap-2.5 px-4 py-2.5 bg-white hover:bg-emerald-50 rounded-2xl border border-emerald-300 shadow-xl text-xs font-bold text-slate-900 hover:text-emerald-800 transition-all hover:scale-105 group"
+            >
+              <span>{t.speedOutwardDispatch}</span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                <Package className="w-4 h-4" />
+              </div>
+            </button>
+
+            {/* Action 3: Log Karigar Advance (Upaad) */}
+            <button
+              onClick={() => {
+                setSpeedMenuOpen(false);
+                setUpaadModalOpen(true);
+              }}
+              className="flex items-center gap-2.5 px-4 py-2.5 bg-white hover:bg-rose-50 rounded-2xl border border-rose-300 shadow-xl text-xs font-bold text-slate-900 hover:text-rose-800 transition-all hover:scale-105 group"
+            >
+              <span>{t.speedLogUpaad}</span>
+              <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md">
+                <Wallet className="w-4 h-4" />
+              </div>
+            </button>
+
+            {/* Action 4: Quick Stitch Rate Quote */}
+            <button
+              onClick={() => {
+                setSpeedMenuOpen(false);
+                setActiveTab("calculator");
+                setTab3SubTab("calculator");
+              }}
+              className="flex items-center gap-2.5 px-4 py-2.5 bg-white hover:bg-indigo-50 rounded-2xl border border-indigo-300 shadow-xl text-xs font-bold text-slate-900 hover:text-indigo-800 transition-all hover:scale-105 group"
+            >
+              <span>{t.speedStitchQuote}</span>
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                <Calculator className="w-4 h-4" />
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Master Floating Toggle Button */}
+        <button
+          onClick={() => setSpeedMenuOpen(!speedMenuOpen)}
+          className={`relative z-40 flex items-center gap-2 h-12 px-4 rounded-full shadow-2xl transition-all duration-300 ${
+            speedMenuOpen
+              ? "bg-slate-900 text-white rotate-0"
+              : "bg-gradient-to-r from-amber-600 via-amber-500 to-amber-400 text-white shadow-amber-500/40 hover:scale-105 active:scale-95"
+          }`}
+          title={t.speedActionTitle}
+        >
+          <div
+            className={`transition-transform duration-300 ${
+              speedMenuOpen ? "rotate-45" : "rotate-0"
+            }`}
+          >
+            <Plus className="w-5 h-5 stroke-[2.5]" />
+          </div>
+          <span className="text-xs font-extrabold tracking-wide pr-1">
+            {speedMenuOpen ? "બંધ કરો" : "+ ઝડપી એન્ટ્રી"}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
