@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="100%" height="100%">
+  <!-- Machine Bezel -->
+  <rect width="600" height="450" rx="16" fill="#1e293b" stroke="#334155" stroke-width="4"/>
+  <text x="300" y="32" font-family="monospace" font-size="15" font-weight="bold" fill="#94a3b8" text-anchor="middle">DAHAO 328 COMPUTERIZED EMBROIDERY SYSTEM</text>
+  <!-- LCD Screen Inner -->
+  <rect x="25" y="45" width="550" height="380" rx="8" fill="#090d16" stroke="#0ea5e9" stroke-width="2"/>
+  <!-- Status Bar -->
+  <rect x="35" y="55" width="530" height="35" rx="4" fill="#0f172a"/>
+  <circle cx="55" cy="72" r="6" fill="#10b981"/>
+  <text x="70" y="76" font-family="monospace" font-size="13" font-weight="bold" fill="#38bdf8">MC: M-01</text>
+  <text x="170" y="76" font-family="monospace" font-size="13" fill="#cbd5e1">HEADS: 20</text>
+  <text x="270" y="76" font-family="monospace" font-size="13" fill="#fbbf24">SPEED: 680 RPM</text>
+  <text x="430" y="76" font-family="monospace" font-size="13" font-weight="bold" fill="#a7f3d0">DAY SHIFT</text>
+  <!-- Counters Box -->
+  <rect x="35" y="105" width="530" height="135" rx="6" fill="#020617" stroke="#1e293b"/>
+  <text x="50" y="130" font-family="monospace" font-size="12" fill="#94a3b8">START STITCH COUNTER:</text>
+  <text x="50" y="160" font-family="monospace" font-size="26" font-weight="900" fill="#64748b">14,200,000</text>
+  <text x="300" y="130" font-family="monospace" font-size="12" fill="#38bdf8">END STITCH COUNTER (LIVE):</text>
+  <text x="300" y="160" font-family="monospace" font-size="28" font-weight="900" fill="#38bdf8">14,645,000</text>
+  <line x1="50" y1="180" x2="550" y2="180" stroke="#1e293b"/>
+  <text x="50" y="215" font-family="monospace" font-size="14" font-weight="bold" fill="#cbd5e1">SHIFT PRODUCTION:</text>
+  <text x="230" y="222" font-family="monospace" font-size="34" font-weight="900" fill="#10b981">445,000</text>
+  <text x="410" y="215" font-family="monospace" font-size="14" fill="#a7f3d0">STITCHES</text>
+  <!-- Operator & Efficiency Bar -->
+  <rect x="35" y="255" width="530" height="90" rx="6" fill="#0f172a" stroke="#1e293b"/>
+  <text x="50" y="280" font-family="sans-serif" font-size="13" font-weight="bold" fill="#ffffff">OPERATOR: <tspan fill="#fbbf24">Ramesh Karigar</tspan></text>
+  <text x="320" y="280" font-family="monospace" font-size="13" font-weight="bold" fill="#10b981">EFFICIENCY: 111.25%</text>
+  <text x="50" y="315" font-family="monospace" font-size="12" fill="#94a3b8">SHIFT TARGET: 400,000</text>
+  <rect x="220" y="302" width="160" height="18" rx="4" fill="#065f46"/>
+  <text x="300" y="315" font-family="sans-serif" font-size="11" font-weight="bold" fill="#6ee7b7" text-anchor="middle">STITCH BONUS: +₹67.50</text>
+  <text x="410" y="315" font-family="monospace" font-size="12" fill="#cbd5e1">DOWNTIME: 25 MIN</text>
+  <!-- Buttons Row -->
+  <rect x="35" y="360" width="115" height="45" rx="6" fill="#0369a1"/>
+  <text x="92" y="387" font-family="monospace" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">F1: RESET</text>
+  <rect x="170" y="360" width="115" height="45" rx="6" fill="#15803d"/>
+  <text x="227" y="387" font-family="monospace" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">F2: SAVE</text>
+  <rect x="305" y="360" width="115" height="45" rx="6" fill="#b45309"/>
+  <text x="362" y="387" font-family="monospace" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">F3: SPEED</text>
+  <rect x="440" y="360" width="125" height="45" rx="6" fill="#334155"/>
+  <text x="502" y="387" font-family="monospace" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">ESC: MENU</text>
+</svg>

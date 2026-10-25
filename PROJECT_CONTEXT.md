@@ -1,36 +1,58 @@
-# ChallanAI (EmbroideryOS) - Master Project Architecture & Context
+# ChallanAI (EmbroideryOS) - Master Project Architecture & Context (v2.0)
 
 ## 1. Domain Overview & Industry Reality
-In the Gujarat embroidery job-work clusters (Ahmedabad, Surat, Jetpur), manufacturing units operate under a pure **Job-Work Model**:
+In the Gujarat embroidery job-work clusters (Surat, Ahmedabad, Jetpur), manufacturing units operate under a pure **Job-Work Model**:
 - **Zero Raw Fabric Ownership:** The embroidery unit never buys the cloth. Merchant clients ("Parties") supply raw fabric rolls (Taka/Meters) or pre-cut garment pieces (Kurtis, Sarees, Blouse pieces, Lehengas).
 - **Physical Inward Challan (આવક ચલણ):** Delivered with paper challans written by hand or carbon copies, frequently in Gujarati or mixed Gujarati-English with regional numerals (`૧, ૨, ૩...` and Gujarati party/design notations).
 - **Tranche Deliveries (ટુકડે-ટુકડે જાવક ચલણ):** Finished embroidered goods leave the factory in 3 to 6 batches as machine heads finish them. Each batch gets an Outward Challan.
+- **The Returned Raw Reality (કાચો માલ પરત - ₹0 Billed):** In Surat job-work, defective or excess unembroidered grey fabric is returned raw to the merchant. It must deduct from pending lot pieces but CANNOT be billed!
 - **The Kasar Dilemma (કાસર / Shortage Disputes):** Fabric defects, thread breaks, or lost paper challans cause disputes at month-end settlement. Parties claim shortages ("Kasar") and deduct 8%–15% from job-work payments unless the factory produces incontrovertible, photo-backed delivery receipts.
 - **Shop-Floor Language & Literacy:** Supervisors ("Masters") and operators ("Karigars") avoid complex enterprise software. They work primarily via WhatsApp photos, voice notes, and vernacular texts in Gujarati and Hindi.
 
 ---
 
-## 2. Core Reconciliation Equations
+## 2. Core Reconciliation Equations (v2.0)
 
-### A. Lot Balance Formula
+### A. Lot Balance Formula (v2.0)
 For every Inward Lot $L$ received from a Party:
 $$\text{Total Inward Qty} = Q_{\text{in}}$$
-$$\text{Total Outward Delivered} = \sum Q_{\text{out\_fresh}}$$
+$$\text{Total Outward Fresh Delivered} = \sum Q_{\text{out\_fresh}}$$
+$$\text{Total Returned Raw (કાચો માલ પરત)} = \sum Q_{\text{returned\_raw}}$$
 $$\text{Total Kasar (Defect/Damage/Shortage)} = \sum Q_{\text{kasar}}$$
-$$\text{Live Pending Balance (બાકી માલ)} = Q_{\text{in}} - \left( \sum Q_{\text{out\_fresh}} + \sum Q_{\text{kasar}} \right)$$
+$$\text{Total Fent (ફેંટ / ટુકડા)} = \sum Q_{\text{fent}}$$
+
+$$\text{Live Pending Balance (બાકી માલ)} = Q_{\text{in}} - \left( \sum Q_{\text{out\_fresh}} + \sum Q_{\text{returned\_raw}} + \sum Q_{\text{kasar}} + \sum Q_{\text{fent}} \right)$$
 
 - **Lot Status Logic:**
   - $\text{Pending Balance} = Q_{\text{in}} \implies \text{RECEIVED (Not Started)}$
   - $0 < \text{Pending Balance} < Q_{\text{in}} \implies \text{IN\_PROGRESS (Partial Delivery)}$
   - $\text{Pending Balance} = 0 \implies \text{COMPLETED (Settled)}$
-  - $\text{Pending Balance} < 0 \implies \text{OVERDELIVERED (Error Flag)}$
+  - $\text{Pending Balance} < 0 \implies \text{OVERDELIVERED (Error Flag / Guard Triggered)}$
 
-### B. Stitch-to-Profit Job-Work Rate Formula
+- **102% Overdelivery Guard:**
+  $$\text{Total Outward Accounted} \le Q_{\text{in}} \times 1.02$$
+  Prevents fraudulent duplicate deliveries or wrong lot linking with an automatic 422 HTTP rejection.
+
+- **Net Billable Amount Formula:**
+  $$\text{Net Billable Job-Work ₹} = \sum \left( Q_{\text{out\_fresh}} \times \text{Agreed Rate} \right)$$
+  *(Returned Raw fabric is strictly accounted at ₹0 rate in billing).*
+
+### B. Machine Shift Efficiency & Operator Bonus Formulas (v2.0)
+Given:
+- $\text{Total Stitches} = \text{End Counter} - \text{Start Counter}$
+- $\text{Target Stitches}$ (e.g., 400,000 stitches per 12-hr shift)
+- $\text{Bonus Rate}$ (e.g., ₹0.20 per 1,000 stitches above target)
+
+$$\text{Shift Efficiency \%} = \left( \frac{\text{Total Stitches}}{\text{Target Stitches}} \right) \times 100$$
+$$\text{Operator Bonus ₹} = \max\left(0, \frac{\text{Total Stitches} - \text{Target Stitches}}{1000} \times \text{Bonus Rate}\right)$$
+$$\text{Low Efficiency Alert} = \text{True if Efficiency \%} < 70\%$$
+
+### C. Stitch-to-Profit Job-Work Rate Formula
 Given:
 - $S$ = Total Stitches in design (e.g., 28,000 stitches)
 - $H$ = Machine Heads (e.g., 20 heads)
 - $RPM$ = Effective Machine Running Speed (e.g., 650 RPM)
-- $E$ = Machine Shift Efficiency Factor ($\approx 75\% - 85\%$ accounting for thread breakage and bobbin change)
+- $E$ = Machine Shift Efficiency Factor ($\approx 75\% - 85\%$)
 - $C_{\text{shift}}$ = Shift Operational Cost (electricity + operator wages + maintenance + building overhead per 12-hr shift)
 - $C_{\text{mat}}$ = Material Cost per piece (Jari thread, viscose embroidery thread, sequin/cord, backing paper/hydro-film)
 
@@ -44,13 +66,14 @@ $$\text{Recommended Party Quote (25% Margin)} = \text{Total Production Cost per 
 
 ---
 
-## 3. Database Schema Blueprint (PostgreSQL / SQLModel)
+## 3. Database Schema Blueprint (PostgreSQL / SQLModel v2.0)
 
 ### 3.1 `parties` (વેપારી ખાતાઓ)
 - `id`: UUID / Primary Key
 - `name`: String (Indexed)
 - `phone`: String (Nullable)
 - `city`: String (Default: 'Surat' / 'Ahmedabad')
+- `gstin`: String (Nullable)
 - `created_at`: DateTime (UTC)
 
 ### 3.2 `challans` (આવક / જાવક ચલણ માસ્ટર)
@@ -59,13 +82,18 @@ $$\text{Recommended Party Quote (25% Margin)} = \text{Total Production Cost per 
 - `party_id`: UUID (Foreign Key -> `parties.id`, Indexed)
 - `challan_number`: String (Physical slip number, Indexed)
 - `challan_date`: Date
-- `design_number`: String (Indexed)
+- `design_number`: String (Indexed, Party Design Number)
+- `factory_punch_number`: String (Nullable, Machine .DST punch card e.g. 'SK-45')
 - `fabric_type`: String (e.g., Silk, Rayon, Cotton, Georgette, Organza)
 - `total_quantity`: Float
 - `unit`: Enum (`PCS`, `MTR`, `TAKA`)
+- `stitches_per_piece`: Integer (Default: 0)
+- `agreed_rate`: Float (Default: 0.0, Job-work rate per piece/meter)
 - `photo_url`: String (Path to uploaded challan photo)
+- `design_photo_url`: String (Nullable, Photo of physical embroidery design sample)
 - `notes`: Text (Nullable)
 - `created_at`: DateTime (UTC)
+- **Constraint:** DB UniqueConstraint `(party_id, challan_number, challan_type)`
 
 ### 3.3 `lot_deliveries` (ટુકડે-ટુકડે જાવક લિંક)
 Links outward deliveries to original inward challan lots.
@@ -73,8 +101,11 @@ Links outward deliveries to original inward challan lots.
 - `inward_challan_id`: UUID (Foreign Key -> `challans.id`, Indexed)
 - `outward_challan_id`: UUID (Foreign Key -> `challans.id`, Indexed)
 - `fresh_quantity`: Float (Fresh delivered pieces/meters)
+- `returned_raw_quantity`: Float (Unembroidered grey fabric returned raw @ ₹0)
 - `kasar_quantity`: Float (Damaged / shortage pieces accepted by party)
+- `fent_quantity`: Float (Cut fabric remnants / fent pieces)
 - `dispatch_date`: Date
+- `notes`: Text (Nullable)
 - `created_at`: DateTime (UTC)
 
 ### 3.4 `machine_shifts` (શિફ્ટ વાઈઝ સ્ટીચ લોગ)
@@ -83,16 +114,28 @@ Links outward deliveries to original inward challan lots.
 - `shift_type`: Enum (`DAY`, `NIGHT`)
 - `shift_date`: Date
 - `operator_name`: String
-- `start_stitch_counter`: BigInt
-- `end_stitch_counter`: BigInt
-- `total_stitches`: BigInt (Computed: `end - start`)
+- `start_stitch_counter`: BigInteger (Lifetime stitch counter)
+- `end_stitch_counter`: BigInteger (Lifetime stitch counter)
+- `total_stitches`: BigInteger (Computed: `end - start`)
+- `target_stitches`: BigInteger (Shift production benchmark, default 400,000)
+- `efficiency_pct`: Float (Computed: `(total / target) * 100`)
+- `bonus_earned_inr`: Float (Operator incentive for exceeding target)
+- `is_low_efficiency_alert`: Boolean (True if efficiency < 70%)
 - `rpm_average`: Integer
 - `downtime_minutes`: Integer (Breakage / electricity / bobbin delay)
 - `photo_url`: String (Photo of machine LCD counter screen)
 - `notes`: Text (Nullable)
 - `created_at`: DateTime (UTC)
 
-### 3.5 `rate_quotes` (સ્ટીચ ભાવ કોટેશન)
+### 3.5 `karigar_advances` (કારીગર ઉપાડ ખાતું)
+- `id`: UUID / Primary Key
+- `operator_name`: String (Indexed)
+- `advance_date`: Date
+- `amount_inr`: Float
+- `notes`: Text (Nullable)
+- `created_at`: DateTime (UTC)
+
+### 3.6 `rate_quotes` (સ્ટીચ ભાવ કોટેશન)
 - `id`: UUID / Primary Key
 - `party_id`: UUID (Foreign Key -> `parties.id`, Nullable)
 - `design_number`: String
@@ -106,59 +149,74 @@ Links outward deliveries to original inward challan lots.
 
 ---
 
-## 4. REST API Endpoints Specification (FastAPI)
+## 4. REST API Endpoints Specification (FastAPI v2.0)
 
-### A. Health & Diagnostics
+### A. Health & Dashboard Summary
 - `GET /api/health` -> System status, DB connectivity, AI service mode.
+- `GET /api/dashboard/summary` -> High-level factory KPIs (Total Active Lots, Pending Pieces, Today's Stitches, Unsettled Ledger Balance ₹).
+- `POST /api/demo/reset` -> Clears temporary demo rows and cleanly reseeds the canonical v2.0 Gujarat dataset.
 
 ### B. Challans & Lot Management
-- `POST /api/challans` -> Create Inward/Outward challan with optional photo upload.
+- `POST /api/challans` -> Create Inward/Outward challan with photo upload and automatic outward lot linking.
 - `GET /api/challans` -> List filtered challans (by party, date, type).
 - `GET /api/challans/{id}` -> Detailed challan info with linked deliveries.
-- `GET /api/lots/pending` -> Live pending lot balances (grouped by Party and Design).
-- `POST /api/lots/{inward_id}/dispatch` -> Record partial outward dispatch against an inward lot.
+- `GET /api/lots/pending` -> Live pending lot balances with 4-way progress (Fresh, Returned Raw, Kasar, Fent).
+- `POST /api/lots/{inward_id}/dispatch` -> Record partial outward dispatch against an inward lot with 102% overdelivery protection.
 
 ### C. AI Vision & Vernacular Message Processing
-- `POST /api/ai/parse-challan-image` -> Multipart form image upload -> Gemini Vision OCR extracts structured JSON (`challan_type`, `party_name`, `challan_number`, `date`, `design_number`, `quantity`, `unit`, Gujarati text transcript) with smart local fallback if offline.
-- `POST /api/ai/process-message` -> Natural language text/voice transcript (Gujarati/Hindi/English) -> AI extracts intent and auto-creates or queries challan/balance records.
+- `POST /api/ai/parse-challan-image` -> Multipart form image upload -> Gemini 2.5 Flash Vision OCR extracts structured v2.0 JSON (`challan_type`, `party_name`, `challan_number`, `date`, `design_number`, `factory_punch_number`, `total_quantity`, `fresh_quantity`, `returned_raw_quantity`, `kasar_quantity`, `fent_quantity`, `unit`, `agreed_rate`, Gujarati transcript) with local fallback.
+- `POST /api/ai/process-message` -> Natural language text/voice transcript (Gujarati/Hindi/English) -> AI extracts intent and executes or queries records.
 
-### D. Stitch Calculator & Shift Tracking
+### D. Stitch Calculator, Shift Tracking & Karigar Salary
 - `POST /api/calculator/quote` -> Computes machine runtime, material consumption, break-even cost, and recommended quote.
-- `POST /api/shifts/log` -> Log machine LCD stitch counters (Day/Night) and flag low-efficiency downtime.
-- `GET /api/shifts/summary` -> Shift stitch comparison across machines.
+- `POST /api/shifts/log` -> Log machine LCD stitch counters (Day/Night), computes efficiency %, bonus INR, and flags downtime.
+- `GET /api/shifts/summary` -> Shift stitch comparison and operator rankings across machines.
+- `GET /api/karigars/summary` -> Aggregates operator shifts, base pay, stitch bonuses, total upaad advances, and net payable salary.
+- `POST /api/karigars/upaad` -> Record cash advance (ઉપાડ) for an operator.
 
-### E. Party Ledger & Exports
+### E. Party Ledger, Consumables & Exports
 - `GET /api/parties` -> List all parties with current active lot count.
-- `GET /api/ledger/{party_id}` -> Complete date-wise ledger reconciling Inwards and Outwards with photo proof links.
-- `GET /api/ledger/{party_id}/export-tally` -> Generates Tally Prime-compatible CSV format.
+- `GET /api/ledger/{party_id}` -> Complete date-wise ledger reconciling Inwards and Outwards with sanitized WhatsApp reminder link and photo proof links.
+- `GET /api/ledger/{party_id}/export-tally` -> Generates Tally Prime-compatible XML/CSV format.
+- `GET /api/designs` -> Returns visual design master catalog with punching codes and agreed rates.
+- `GET /api/consumables` & `POST /api/consumables/toggle` -> Thread/Jari/Bobbin stock alerts.
 
 ---
 
-## 5. Frontend 4-Tab Mobile-First UI Blueprint
+## 5. Frontend 4-Tab Mobile-First UI Blueprint (v2.0)
 
 ### Global Features
-- **Bilingual Toggle (ગુજરાતી / English):** Instant language switch stored in local storage, changing all tab titles, labels, badges, and AI bot responses.
-- **Mobile-First Responsive PWA:** Optimized for factory floor smartphones (360px - 430px) as well as desktop tablets/PCs.
-- **Live Sync Badge:** Real-time indicator showing backend and database connection status.
+- **Bilingual Toggle (ગુજરાતી / English):** Instant language switch stored in localStorage, updating all tab titles, labels, badges, and bot slips.
+- **Top Header:** Shows Factory Name (`શ્રી કૃષ્ણ એમ્બ્રોઇડરી`), Live DB/AI Status Badge, Demo Reset Button, and Design Catalog shortcut.
+- **Floating Quick-Action Speed Button (`+ ઝડપી એન્ટ્રી`):** 4-action speed menu accessible anywhere in the app.
 
 ### Tab 1: 💬 WhatsApp AI Bot (`/bot`)
 - Authentic WhatsApp-styled conversation interface.
-- Camera / Photo Upload button for paper challans + Quick-Test preloaded challan samples (Handwritten Gujarati & English challan samples).
-- Text/Audio input supporting Gujarati queries (e.g., *"રાધે ક્રિએશનનો બાકી માલ કેટલો છે?"*).
-- AI Munim response bubbles with structured summary cards, photo previews, and 1-click confirmation buttons to commit directly into the database.
+- 4 Preset chips:
+  1. `📸 Radhe Inward 1200 Pcs`
+  2. `📦 Maruti Outward 400 Fresh + 50 Raw`
+  3. `⚠️ Duplicate Guard Test #RC-1048`
+  4. `🖥️ Dahao LCD 4.45L Stitches`
+- Confirmation cards for Inward and Outward with direct linking into Tab 2.
+- 409 Conflict duplicate prevention warning bubble in Gujarati & English.
 
 ### Tab 2: 📦 બાકી માલ - Pending Lots (`/pending`)
-- Party-wise grouped lot cards showing: Inward Challan No, Design No, Fabric, Inward Date.
-- Visual Progress Bar: Delivered vs. Kasar vs. Pending.
-- 1-Click "જાવક નોંધો (Log Partial Delivery)" modal with instant Kasar damage quantity entry.
+- Consumables status quick bar at the top (Polyester, Jari, Bobbin, Sequin, Paper) with 1-tap stock toggle and vendor reorder button.
+- Party-wise grouped lot cards with **4-color stacked progress bars**:
+  - Emerald (`Fresh Delivered`)
+  - Sky Blue (`Returned Raw @ ₹0`)
+  - Rose (`Kasar + Fent`)
+  - Slate (`Pending Floor Balance`)
+- 1-Click `જાવક નોંધો (Log Partial Delivery)` modal with 1-tap quick fill chips (`[ બાકી બધો માલ ફ્રેશ ]`, `[ +100 ]`, `[ +200 ]`) and live preview.
 
-### Tab 3: 🧮 સ્ટીચ ભાવ - Stitch Rate & Shift Tracker (`/calculator`)
-- **Stitch-to-Profit Calculator:** Interactive sliders/inputs for Stitch Count, Heads, RPM, Shift Cost, Material Type. Visual cards for Break-even Rate and Party Quote (25% profit).
-- **Day/Night Machine Counter Log:** Machine number selector, Shift toggle (Day 8 AM - 8 PM vs. Night 8 PM - 8 AM), Start/End LCD stitch inputs, and low output alert.
+### Tab 3: 🧮 સ્ટીચ ભાવ, શિફ્ટ & કારીગર ખાતું (`/calculator`)
+- **Sub-tab 1: Stitch-to-Profit Costing Calculator** with real-time visual cards for Break-even Rate, Recommended Quote, Pieces/Shift, and Shift Profit.
+- **Sub-tab 2: Day/Night Machine Counter Logs** with efficiency %, operator bonus badges, and low-efficiency alert banners.
+- **Sub-tab 3: 👷 કારીગર હિસાબ (Karigar Salary Tracker)** with shift counts, base pay, bonus, cash advance (upaad), net salary, and 1-click WhatsApp salary slip.
 
-### Tab 4: 📄 પાર્ટી ખાતું - Party Ledger & Proofs (`/ledger`)
+### Tab 4: 📄 પાર્ટી ખાતું - Party Ledger & Zero-Dispute A4 Print (`/ledger`)
 - Party selector dropdown with search.
-- Dual-table reconciliation view:
-  - Inward vs. Outward with original Challan Photo thumbnail modals.
-  - Zero-dispute Kasar summary.
-- Export actions: 1-Click printable clean A4 layout for WhatsApp sharing + Tally CSV export.
+- **5% GST Toggle:** Switch between `કાચો હિસાબ (Estimate)` and `પાકું GST બિલ (5% Job-Work GST - HSN 998821)` with CGST (2.5%) + SGST (2.5%).
+- Embedded SVG/JPG challan photo proof modals.
+- Factory Bank Details & Vector Scan-to-Pay UPI QR Code.
+- `@media print` A4 Zero-Dispute Party Statement with Inward vs. Outward tables, Returned Raw proof, and signature boxes.

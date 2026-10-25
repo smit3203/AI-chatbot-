@@ -74,6 +74,7 @@ import {
   fetchDesignCatalog,
   fetchConsumablesStock,
   toggleConsumableStock,
+  resetDemoData,
 } from "@/lib/api";
 
 export default function Home() {
@@ -215,7 +216,15 @@ export default function Home() {
   // TAB 1: WHATSAPP BOT STATE
   // -------------------------------------------------------------
   const [messages, setMessages] = useState<
-    Array<{ sender: "user" | "bot"; text: string; time: string; ocrData?: ExtractedChallanData }>
+    Array<{
+      sender: "user" | "bot";
+      text: string;
+      time: string;
+      ocrData?: ExtractedChallanData;
+      isDuplicateAlert?: boolean;
+      showJumpToLots?: boolean;
+      lcdProofUrl?: string;
+    }>
   >([
     {
       sender: "bot",
@@ -229,6 +238,24 @@ export default function Home() {
   const [ocrModalOpen, setOcrModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // 1-Click Demo Reset State & Handler
+  const [isResettingDemo, setIsResettingDemo] = useState(false);
+  const handleResetDemo = async () => {
+    try {
+      setIsResettingDemo(true);
+      const res = await resetDemoData();
+      showToast(t.resetDemoSuccess || res.message, "success");
+      await loadInitialData();
+      await loadPendingLotsData();
+      await loadShiftsData();
+      if (selectedPartyId) await loadPartyLedgerData(selectedPartyId);
+    } catch (e: any) {
+      showToast(e.message || "Reset failed", "error");
+    } finally {
+      setIsResettingDemo(false);
+    }
+  };
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -302,7 +329,57 @@ export default function Home() {
   };
 
   const triggerPreset = async (presetFilename: string) => {
-    // Create a dummy file with preset name so backend matches deterministic preset
+    if (presetFilename === "preset_duplicate_guard.jpg") {
+      setIsProcessing(true);
+      const userTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setMessages((prev) => [
+        ...prev,
+        { sender: "user", text: `⚠️ [ડુપ્લિકેટ ચલણ ચકાસણી]: Radhe Creation #RC-1048`, time: userTime },
+      ]);
+
+      setTimeout(() => {
+        const botTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "bot",
+            text: `⚠️ [409 Conflict Guard - ડુપ્લિકેટ ચલણ અટકાવવામાં આવ્યું]\n\nવેપારી: Radhe Creation (સુરત)\nચલણ નંબર: RC-1048\n\nઆ ચલણ નંબર આ પાર્ટી માટે તારીખ 24/10/2026 ના રોજ 1,200 પીસ આવક તરીકે પહેલેથી જ નોંધાયેલ છે! સિસ્ટમે ડબલ એન્ટ્રી અટકાવી દીધી છે.`,
+            time: botTime,
+            isDuplicateAlert: true,
+          },
+        ]);
+        showToast("409 Conflict Guard: ડબલ એન્ટ્રી અટકાવાઈ!", "error");
+        setIsProcessing(false);
+      }, 600);
+      return;
+    }
+
+    if (presetFilename === "preset_dahao_lcd.jpg") {
+      setIsProcessing(true);
+      const userTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setMessages((prev) => [
+        ...prev,
+        { sender: "user", text: `🖥️ [મશીન LCD સ્કેન]: Dahao 328 Machine M-01`, time: userTime },
+      ]);
+
+      setTimeout(() => {
+        const botTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "bot",
+            text: `🖥️ Dahao 328 LCD સ્ટીચ કાઉન્ટર સફળતાપૂર્વક વંચાઈ ગયું!\n\nમશીન: M-01 (DAY શિફ્ટ)\nઓપરેટર: Ramesh Karigar\nશરૂઆત કાઉન્ટર: 14,200,000\nઆખર કાઉન્ટર: 14,645,000\nકુલ ઉત્પાદન: 4,45,000 ટાંકા\nકાર્યક્ષમતા: 111.25%\nકારીગર બોનસ: +₹67.50\nડાઉનટાઇમ: 25 મિનિટ`,
+            time: botTime,
+            lcdProofUrl: "/uploads/preset_dahao_lcd.jpg",
+          },
+        ]);
+        showToast("Dahao LCD સ્કેન સફળ! શિફ્ટ લોગમાં જોઈ શકાય છે.", "success");
+        setIsProcessing(false);
+      }, 600);
+      return;
+    }
+
+    // Default flow for Radhe Inward or Maruti Outward
     const dummyBlob = new Blob(["demo-preset-bytes"], { type: "image/jpeg" });
     const dummyFile = new File([dummyBlob], presetFilename, { type: "image/jpeg" });
     await handleFileUpload(dummyFile);
@@ -322,6 +399,10 @@ export default function Home() {
         stitches_per_piece: pendingOcrData.stitches_per_piece,
         fabric_type: pendingOcrData.fabric_type,
         total_quantity: pendingOcrData.quantity,
+        fresh_quantity: pendingOcrData.fresh_quantity ?? pendingOcrData.quantity,
+        returned_raw_quantity: pendingOcrData.returned_raw_quantity ?? 0,
+        kasar_quantity: pendingOcrData.kasar_quantity ?? 0,
+        fent_quantity: pendingOcrData.fent_quantity ?? 0,
         unit: pendingOcrData.unit,
         photo_url: pendingOcrData.photo_url,
         notes: pendingOcrData.raw_gujarati_notes,
@@ -329,9 +410,23 @@ export default function Home() {
 
       showToast("ચલણ ખાતાવહીમાં સેવ થઈ ગયું! (Challan successfully saved)", "success");
       setOcrModalOpen(false);
+
+      const botTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      if (pendingOcrData.challan_type === "OUTWARD") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "bot",
+            text: `✅ જાવક ચલણ #${pendingOcrData?.challan_number} (${pendingOcrData?.party_name}) કન્ફર્મ થયું!\nબાકી માલ બેલેન્સ લાઈવ અપડેટ થઈ ગયું છે.`,
+            time: botTime,
+            showJumpToLots: true,
+          },
+        ]);
+      }
+
       setPendingOcrData(null);
-      loadPendingLotsData();
-      loadInitialData();
+      await loadPendingLotsData();
+      await loadInitialData();
     } catch (err: any) {
       showToast(err.message, "error");
     }
@@ -612,6 +707,17 @@ export default function Home() {
               <span>{health?.database_engine.includes("NEON") ? t.databaseNeon : t.databaseSqlite}</span>
             </div>
 
+            {/* 1-Click Demo Reset Button */}
+            <button
+              onClick={handleResetDemo}
+              disabled={isResettingDemo}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+              title={t.btnResetDemo}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-rose-600 ${isResettingDemo ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{t.btnResetDemo}</span>
+            </button>
+
             {/* Design Master Catalog Button */}
             <button
               onClick={() => setDesignGalleryOpen(true)}
@@ -792,6 +898,41 @@ export default function Home() {
                             {t.btnConfirmSave}
                           </button>
                         </div>
+                      )}
+
+                      {/* Duplicate 409 Alert Bubble */}
+                      {m.isDuplicateAlert && (
+                        <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border-2 border-rose-400 text-rose-900 font-bold space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-rose-700">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse" />
+                            <span>{t.duplicateAlertTitle}</span>
+                          </div>
+                          <p className="text-[11px] font-normal text-rose-800 leading-relaxed">
+                            {t.duplicateAlertMsg}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Jump to Pending Lots Button */}
+                      {m.showJumpToLots && (
+                        <button
+                          onClick={() => setActiveTab("pending")}
+                          className="mt-2.5 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                        >
+                          <Package className="w-4 h-4" />
+                          <span>{t.btnJumpToLots}</span>
+                        </button>
+                      )}
+
+                      {/* Machine LCD Proof Viewer Button */}
+                      {m.lcdProofUrl && (
+                        <button
+                          onClick={() => setPhotoPreviewUrl(m.lcdProofUrl!)}
+                          className="mt-2.5 w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>🖥️ Dahao LCD ફોટો પ્રૂફ જુઓ</span>
+                        </button>
                       )}
 
                       <span className="block text-[10px] text-slate-400 text-right mt-1">
@@ -1099,8 +1240,8 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Design & Stitches Badge */}
-                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl">
+                  {/* Design, Punch & Billable Earned */}
+                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                     <div>
                       ડીઝાઇન: <span className="font-bold text-slate-900">{lot.design_number}</span> ({lot.fabric_type})
                     </div>
@@ -1109,28 +1250,44 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Multi-segment Progress Bar */}
+                  <div className="flex items-center justify-between text-xs bg-emerald-50/80 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                    <span className="text-emerald-800 font-semibold">{t.billableEarnedSoFar || "કમાયેલ બિલ રકમ (Billable Earned):"}</span>
+                    <span className="font-mono font-extrabold text-emerald-700">₹{Math.round(lot.total_fresh_delivered * lot.agreed_rate).toLocaleString("en-IN")}</span>
+                  </div>
+
+                  {/* 4-Color Stacked Progress Bar */}
                   <div>
                     <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
                       <span>પૂર્ણતા: {lot.completion_percentage}%</span>
-                      <span className="text-amber-600">બાકી: {lot.pending_balance} {lot.unit}</span>
+                      <span className="text-amber-600">બાકી માલ: {lot.pending_balance} {lot.unit}</span>
                     </div>
-                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                    <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
                       <div
-                        style={{ width: `${(lot.total_fresh_delivered / lot.total_inward) * 100}%` }}
-                        className="bg-emerald-500 h-full"
-                        title="Fresh Delivered"
+                        style={{ width: `${Math.min(100, (lot.total_fresh_delivered / lot.total_inward) * 100)}%` }}
+                        className="bg-emerald-500 h-full transition-all"
+                        title={`Fresh Delivered: ${lot.total_fresh_delivered}`}
                       />
                       <div
-                        style={{ width: `${(lot.total_returned_raw / lot.total_inward) * 100}%` }}
-                        className="bg-blue-400 h-full"
-                        title="Returned Raw"
+                        style={{ width: `${Math.min(100, (lot.total_returned_raw / lot.total_inward) * 100)}%` }}
+                        className="bg-sky-400 h-full transition-all"
+                        title={`Returned Raw: ${lot.total_returned_raw}`}
                       />
                       <div
-                        style={{ width: `${(lot.total_kasar / lot.total_inward) * 100}%` }}
-                        className="bg-rose-400 h-full"
-                        title="Kasar"
+                        style={{ width: `${Math.min(100, ((lot.total_kasar + lot.total_fent) / lot.total_inward) * 100)}%` }}
+                        className="bg-rose-400 h-full transition-all"
+                        title={`Kasar + Fent: ${lot.total_kasar + lot.total_fent}`}
                       />
+                      <div
+                        style={{ width: `${Math.max(0, Math.min(100, (lot.pending_balance / lot.total_inward) * 100))}%` }}
+                        className="bg-slate-400 h-full transition-all"
+                        title={`Pending on Floor: ${lot.pending_balance}`}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 px-1 font-medium">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>ફ્રેશ</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block"></span>કાચો પરત</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400 inline-block"></span>કસર/ફેંટ</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>બાકી</span>
                     </div>
                   </div>
 
@@ -1144,9 +1301,9 @@ export default function Home() {
                       <p className="text-[9px] text-emerald-600 uppercase">{t.lotFreshDelivered}</p>
                       <p className="font-bold text-emerald-700">{lot.total_fresh_delivered}</p>
                     </div>
-                    <div className="bg-blue-50 p-1.5 rounded-lg border border-blue-100">
-                      <p className="text-[9px] text-blue-600 uppercase">કાચો પરત</p>
-                      <p className="font-bold text-blue-700">{lot.total_returned_raw}</p>
+                    <div className="bg-sky-50 p-1.5 rounded-lg border border-sky-100">
+                      <p className="text-[9px] text-sky-600 uppercase">કાચો પરત</p>
+                      <p className="font-bold text-sky-700">{lot.total_returned_raw}</p>
                     </div>
                     <div className="bg-rose-50 p-1.5 rounded-lg border border-rose-100">
                       <p className="text-[9px] text-rose-600 uppercase">કસર+ફેંટ</p>
@@ -1407,15 +1564,23 @@ export default function Home() {
                             {s.efficiency_pct}%
                           </span>
                         </td>
-                        <td className="p-3 font-bold text-emerald-700">₹{s.bonus_earned_inr}</td>
+                        <td className="p-3 font-bold">
+                          {s.bonus_earned_inr > 0 ? (
+                            <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded-lg border border-emerald-300 font-extrabold text-[11px] inline-block shadow-xs">
+                              +₹{Number(s.bonus_earned_inr).toFixed(2)} કારીગર બોનસ
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">₹0.00</span>
+                          )}
+                        </td>
                         <td className="p-3 font-sans">
                           {s.is_low_efficiency_alert ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-700 bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-300 animate-pulse shadow-sm">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                               <span>{t.lowEfficiencyAlert}</span>
                             </span>
                           ) : (
-                            <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">
+                            <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg font-medium border border-emerald-200">
                               સામાન્ય (Normal)
                             </span>
                           )}
@@ -1781,7 +1946,7 @@ export default function Home() {
                         <th className="p-2 border border-slate-300 text-rose-700">{t.tblKasar}</th>
                         <th className="p-2 border border-slate-300">{t.tblRate}</th>
                         <th className="p-2 border border-slate-300 font-bold">{t.tblBillableAmount}</th>
-                        <th className="p-2 border border-slate-300 no-print">{t.tblPhotoProof}</th>
+                        <th className="p-2 border border-slate-300 text-center">{t.tblPhotoProof}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 font-mono">
@@ -1799,13 +1964,20 @@ export default function Home() {
                           <td className="p-2 border border-slate-300">-</td>
                           <td className="p-2 border border-slate-300">₹{inc.agreed_rate}</td>
                           <td className="p-2 border border-slate-300">-</td>
-                          <td className="p-2 border border-slate-300 no-print">
+                          <td className="p-2 border border-slate-300 text-center">
                             <button
                               onClick={() => setPhotoPreviewUrl(inc.photo_url || "/uploads/preset_radhe_inward.jpg")}
-                              className="text-amber-600 hover:text-amber-800 underline font-sans text-[11px]"
+                              className="no-print text-amber-600 hover:text-amber-800 underline font-sans text-[11px]"
                             >
                               જુઓ
                             </button>
+                            <div className="hidden print:block text-center">
+                              <img
+                                src={inc.photo_url || "/uploads/preset_radhe_inward.jpg"}
+                                alt="Slip"
+                                className="w-10 h-10 object-cover rounded border border-slate-400 mx-auto"
+                              />
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1826,13 +1998,20 @@ export default function Home() {
                           <td className="p-2 border border-slate-300 font-extrabold text-slate-900">
                             ₹{out.billable_amount_inr.toLocaleString()}
                           </td>
-                          <td className="p-2 border border-slate-300 no-print">
+                          <td className="p-2 border border-slate-300 text-center">
                             <button
                               onClick={() => setPhotoPreviewUrl(out.photo_url || "/uploads/preset_maruti_outward.jpg")}
-                              className="text-indigo-600 hover:text-indigo-800 underline font-sans text-[11px]"
+                              className="no-print text-indigo-600 hover:text-indigo-800 underline font-sans text-[11px]"
                             >
                               જુઓ
                             </button>
+                            <div className="hidden print:block text-center">
+                              <img
+                                src={out.photo_url || "/uploads/preset_maruti_outward.jpg"}
+                                alt="Slip"
+                                className="w-10 h-10 object-cover rounded border border-slate-400 mx-auto"
+                              />
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2019,15 +2198,104 @@ export default function Home() {
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">{t.ocrQty}</label>
-                <input
-                  type="number"
-                  value={pendingOcrData.quantity}
-                  onChange={(e) => setPendingOcrData({ ...pendingOcrData, quantity: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold font-mono"
-                />
-              </div>
+              {pendingOcrData.challan_type === "OUTWARD" ? (
+                <div className="col-span-1 sm:col-span-2 p-3 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-900 text-xs">જાવક ડિલિવરી વિગત (Outward Tranche Breakdown):</span>
+                    <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded-full">
+                      બાકી લોટમાંથી આપમેળે કપાશે
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div>
+                      <label className="font-bold text-emerald-800 block mb-1 text-[11px]">તૈયાર (Fresh Qty)</label>
+                      <input
+                        type="number"
+                        value={pendingOcrData.fresh_quantity ?? pendingOcrData.quantity}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const raw = pendingOcrData.returned_raw_quantity ?? 0;
+                          const kasar = pendingOcrData.kasar_quantity ?? 0;
+                          const fent = pendingOcrData.fent_quantity ?? 0;
+                          setPendingOcrData({
+                            ...pendingOcrData,
+                            fresh_quantity: val,
+                            quantity: val + raw + kasar + fent,
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-emerald-300 bg-emerald-50 rounded-lg font-bold font-mono text-emerald-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-sky-800 block mb-1 text-[11px]">કાચો પરત (₹0)</label>
+                      <input
+                        type="number"
+                        value={pendingOcrData.returned_raw_quantity ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const fresh = pendingOcrData.fresh_quantity ?? pendingOcrData.quantity;
+                          const kasar = pendingOcrData.kasar_quantity ?? 0;
+                          const fent = pendingOcrData.fent_quantity ?? 0;
+                          setPendingOcrData({
+                            ...pendingOcrData,
+                            returned_raw_quantity: val,
+                            quantity: fresh + val + kasar + fent,
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-sky-300 bg-sky-50 rounded-lg font-bold font-mono text-sky-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-rose-800 block mb-1 text-[11px]">કસર (Kasar)</label>
+                      <input
+                        type="number"
+                        value={pendingOcrData.kasar_quantity ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const fresh = pendingOcrData.fresh_quantity ?? pendingOcrData.quantity;
+                          const raw = pendingOcrData.returned_raw_quantity ?? 0;
+                          const fent = pendingOcrData.fent_quantity ?? 0;
+                          setPendingOcrData({
+                            ...pendingOcrData,
+                            kasar_quantity: val,
+                            quantity: fresh + raw + val + fent,
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-rose-300 bg-rose-50 rounded-lg font-bold font-mono text-rose-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1 text-[11px]">ફેંટ (Fent)</label>
+                      <input
+                        type="number"
+                        value={pendingOcrData.fent_quantity ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const fresh = pendingOcrData.fresh_quantity ?? pendingOcrData.quantity;
+                          const raw = pendingOcrData.returned_raw_quantity ?? 0;
+                          const kasar = pendingOcrData.kasar_quantity ?? 0;
+                          setPendingOcrData({
+                            ...pendingOcrData,
+                            fent_quantity: val,
+                            quantity: fresh + raw + kasar + val,
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-slate-50 rounded-lg font-bold font-mono text-slate-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">{t.ocrQty}</label>
+                  <input
+                    type="number"
+                    value={pendingOcrData.quantity}
+                    onChange={(e) => setPendingOcrData({ ...pendingOcrData, quantity: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold font-mono"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1">{t.ocrAgreedRate}</label>
@@ -2128,6 +2396,32 @@ export default function Home() {
                 />
               </div>
 
+              {/* Quick Preset Chips for Floor Operator */}
+              <div className="flex items-center gap-1.5 flex-wrap bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-600">ઝડપી સેટિંગ:</span>
+                <button
+                  type="button"
+                  onClick={() => setDispatchForm({ ...dispatchForm, fresh_quantity: selectedLotForDispatch.pending_balance })}
+                  className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold transition-colors"
+                >
+                  ⚡ {t.chipAllFresh} ({selectedLotForDispatch.pending_balance})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDispatchForm({ ...dispatchForm, fresh_quantity: Math.min(selectedLotForDispatch.pending_balance, (dispatchForm.fresh_quantity || 0) + 100) })}
+                  className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[11px] font-bold transition-colors"
+                >
+                  {t.chipPlus100}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDispatchForm({ ...dispatchForm, fresh_quantity: Math.min(selectedLotForDispatch.pending_balance, (dispatchForm.fresh_quantity || 0) + 200) })}
+                  className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[11px] font-bold transition-colors"
+                >
+                  {t.chipPlus200}
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-emerald-800 block mb-1">
@@ -2182,6 +2476,31 @@ export default function Home() {
                   />
                 </div>
               </div>
+
+              {/* Live Calculation Preview Box */}
+              {(() => {
+                const totalDelivering = (dispatchForm.fresh_quantity || 0) + (dispatchForm.returned_raw_quantity || 0) + (dispatchForm.kasar_quantity || 0) + (dispatchForm.fent_quantity || 0);
+                const newPending = Math.max(0, selectedLotForDispatch.pending_balance - totalDelivering);
+                const billableAmt = (dispatchForm.fresh_quantity || 0) * (selectedLotForDispatch.agreed_rate || 0);
+                return (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl grid grid-cols-2 gap-3 text-center">
+                    <div>
+                      <p className="text-[10px] text-amber-800 font-bold uppercase">{t.previewNewPending}</p>
+                      <p className="font-mono font-black text-base text-amber-900 mt-0.5">
+                        {newPending} {selectedLotForDispatch.unit}
+                      </p>
+                      <span className="text-[9px] text-amber-700">ખાતાવહી બાકી માલ</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-emerald-800 font-bold uppercase">{t.previewBillable}</p>
+                      <p className="font-mono font-black text-base text-emerald-800 mt-0.5">
+                        ₹{Math.round(billableAmt).toLocaleString("en-IN")}
+                      </p>
+                      <span className="text-[9px] text-emerald-700">ફ્રેશ નંગ * ₹{selectedLotForDispatch.agreed_rate}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1">
@@ -2239,36 +2558,40 @@ export default function Home() {
       {/* ========================================================= */}
       {photoPreviewUrl && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3">
-          <div className="bg-white rounded-3xl max-w-md w-full p-4 shadow-2xl space-y-3">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-4 sm:p-5 shadow-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h4 className="font-bold text-sm text-slate-900">
-                {t.btnViewPhoto}
+              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-500" />
+                <span>{t.photoModalTitle || t.btnViewPhoto}</span>
               </h4>
               <button
                 onClick={() => setPhotoPreviewUrl(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100 min-h-[260px] flex items-center justify-center">
-              <div className="p-6 text-center space-y-2">
-                <FileText className="w-16 h-16 text-amber-500 mx-auto" />
-                <p className="font-bold text-slate-800 text-sm">ઓરિજિનલ પેપર ચલણ સ્લિપ</p>
-                <p className="text-xs text-slate-500 font-mono">ફોટો પાથ: {photoPreviewUrl}</p>
-                <div className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded inline-block font-semibold">
-                  ✓ ડિજિટલ સહી અને વેરિફાઇડ સ્ટેમ્પ સાથે સંગ્રહિત
-                </div>
-              </div>
+            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900/5 min-h-[300px] flex items-center justify-center p-2">
+              <img
+                src={photoPreviewUrl}
+                alt="Challan / Screen Proof"
+                className="max-h-[70vh] w-auto max-w-full rounded-xl object-contain shadow-md bg-white border border-slate-200"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = "none";
+                }}
+              />
             </div>
 
-            <button
-              onClick={() => setPhotoPreviewUrl(null)}
-              className="w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900"
-            >
-              બંધ કરો (Close)
-            </button>
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span className="font-mono truncate max-w-[250px]">{photoPreviewUrl}</span>
+              <button
+                onClick={() => setPhotoPreviewUrl(null)}
+                className="py-1.5 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors"
+              >
+                બંધ કરો (Close)
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -150,6 +150,22 @@ def get_dashboard_summary(session: Session = Depends(get_session)):
     )
 
 
+# --- 2B. 1-CLICK DEMO RESET ENDPOINT ---
+
+@app.post("/api/demo/reset")
+def reset_demo_database():
+    """
+    1-Click Demo Reset: Wipes all temporary test records and cleanly
+    reseeds the canonical v2.0 Gujarat EmbroideryOS dataset.
+    """
+    seed_database()
+    return {
+        "success": True,
+        "message": "ડેમો ડેટા સફળતાપૂર્વક રીસેટ થઈ ગયો (Demo database successfully reset to v2.0 canonical state)",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
 # --- 3. CHALLAN MANAGEMENT & DUPLICATE GUARD ---
 
 @app.post("/api/challans", response_model=ChallanRead, status_code=201)
@@ -157,6 +173,8 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
     """
     Creates an Inward or Outward Challan with Duplicate Challan Guard protection.
     Prevents duplicate slip numbers for the same party and challan type.
+    When an OUTWARD challan is created, automatically finds the matching active
+    INWARD lot for (party, design) and registers the LotDelivery with 102% Overdelivery Guard!
     """
     # 1. Resolve Party
     party = None
@@ -208,6 +226,56 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
     session.add(new_challan)
     session.commit()
     session.refresh(new_challan)
+
+    # 4. Auto-link OUTWARD challans to matching active INWARD lot
+    if new_challan.challan_type == ChallanType.OUTWARD:
+        fresh_qty = payload.fresh_quantity if payload.fresh_quantity is not None else payload.total_quantity
+        raw_qty = payload.returned_raw_quantity or 0.0
+        kasar_qty = payload.kasar_quantity or 0.0
+        fent_qty = payload.fent_quantity or 0.0
+        total_accounted_this = fresh_qty + raw_qty + kasar_qty + fent_qty
+
+        inward_candidates = session.exec(
+            select(Challan)
+            .where(
+                Challan.party_id == party.id,
+                Challan.challan_type == ChallanType.INWARD,
+                Challan.design_number.ilike(f"%{new_challan.design_number.strip()}%")
+            )
+            .order_by(Challan.challan_date.asc())
+        ).all()
+
+        target_inward = None
+        for inv in inward_candidates:
+            delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inv.id)).all()
+            accounted = sum(d.fresh_quantity + d.returned_raw_quantity + d.kasar_quantity + d.fent_quantity for d in delivs)
+            if accounted < (inv.total_quantity * 1.02):
+                target_inward = inv
+                break
+
+        if not target_inward and inward_candidates:
+            target_inward = inward_candidates[0]
+
+        if target_inward:
+            delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == target_inward.id)).all()
+            existing_accounted = sum(d.fresh_quantity + d.returned_raw_quantity + d.kasar_quantity + d.fent_quantity for d in delivs)
+            if (existing_accounted + total_accounted_this) > (target_inward.total_quantity * 1.02):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"જાવક જથ્થો આવક કરતા વધારે છે (102% Overdelivery Guard: Total {existing_accounted + total_accounted_this} exceeds inward {target_inward.total_quantity} by >2%)"
+                )
+
+            delivery = LotDelivery(
+                inward_challan_id=target_inward.id,
+                outward_challan_id=new_challan.id,
+                fresh_quantity=fresh_qty,
+                returned_raw_quantity=raw_qty,
+                kasar_quantity=kasar_qty,
+                fent_quantity=fent_qty,
+                dispatch_date=new_challan.challan_date
+            )
+            session.add(delivery)
+            session.commit()
 
     return ChallanRead(
         id=new_challan.id,
@@ -460,7 +528,7 @@ def dispatch_partial_delivery(
     rate = inward.agreed_rate if inward.agreed_rate > 0 else 42.0
     billable_this_dispatch = round(payload.fresh_quantity * rate, 2)
 
-    # Format WhatsApp notification
+    # Format WhatsApp notification with sanitized phone
     whatsapp_msg = (
         f"નમસ્તે {party_name}, ચલણ નં {inward.challan_number} સામે જાવક ચલણ {payload.outward_challan_number} થી "
         f"{int(payload.fresh_quantity)} {inward.unit.value} ફ્રેશ"
@@ -470,6 +538,13 @@ def dispatch_partial_delivery(
     if payload.kasar_quantity > 0:
         whatsapp_msg += f", {int(payload.kasar_quantity)} {inward.unit.value} કાસર"
     whatsapp_msg += f" મોકલેલ છે (બિલિંગ રકમ: ₹{billable_this_dispatch:,.2f}). હવે બાકી માલ {new_pending} {inward.unit.value} રહ્યો છે."
+
+    clean_party_phone = re.sub(r"\D", "", party.phone or "")
+    if len(clean_party_phone) == 10:
+        clean_party_phone = f"91{clean_party_phone}"
+    elif not clean_party_phone:
+        clean_party_phone = "919825012345"
+    whatsapp_dispatch_url = f"https://wa.me/{clean_party_phone}?text={urllib.parse.quote(whatsapp_msg)}"
 
     return LotDispatchResponse(
         success=True,
@@ -486,7 +561,8 @@ def dispatch_partial_delivery(
             "pending_balance": new_pending,
             "billable_amount_inr": billable_this_dispatch,
             "status": "COMPLETED" if new_pending == 0 else "IN_PROGRESS",
-            "whatsapp_message": whatsapp_msg
+            "whatsapp_message": whatsapp_msg,
+            "whatsapp_url": whatsapp_dispatch_url
         }
     )
 
@@ -752,14 +828,18 @@ def get_party_ledger(party_id: UUID, session: Session = Depends(get_session)):
     total_accounted = total_fresh + total_returned_raw + total_kasar + total_fent
     pending_balance = round(total_inward - total_accounted, 2)
 
-    # WhatsApp Udhari prefilled polite message
-    phone_digits = re.sub(r"\D", "", party.phone or "919825012345")
+    # WhatsApp Udhari prefilled polite message with sanitized phone
+    clean_party_phone = re.sub(r"\D", "", party.phone or "")
+    if len(clean_party_phone) == 10:
+        clean_party_phone = f"91{clean_party_phone}"
+    elif not clean_party_phone:
+        clean_party_phone = "919825012345"
     polite_msg = (
         f"નમસ્તે {party.name}, ચલાન સેટલમેન્ટ મુજબ {int(total_fresh)} ફ્રેશ પીસ ચોખ્ખી કુલ બિલિંગ રકમ ₹{total_billable_amount:,.2f} થાય છે. "
         f"કાચો પરત: {int(total_returned_raw)} પીસ, કાસર: {int(total_kasar)} પીસ હિસાબમાં સમાયેલ છે. "
         f"ફોટો પ્રૂફ સાથે પૂરો હિસાબ જોવા કૃપા કરીને સંપર્ક કરો."
     )
-    whatsapp_url = f"https://wa.me/{phone_digits}?text={urllib.parse.quote(polite_msg)}"
+    whatsapp_url = f"https://wa.me/{clean_party_phone}?text={urllib.parse.quote(polite_msg)}"
 
     summary = PartySummaryRead(
         total_inward_qty=round(total_inward, 1),

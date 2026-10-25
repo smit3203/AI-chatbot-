@@ -1,1 +1,45 @@
-dummy image bytes for preset test
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="100%" height="100%">
+  <rect width="600" height="800" fill="#fffdfa" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="20" y="20" width="560" height="760" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 2"/>
+  <text x="300" y="55" font-family="'Noto Sans Gujarati', sans-serif" font-size="14" font-weight="bold" fill="#b45309" text-anchor="middle">|| શ્રી ગણેશાય નમઃ ||</text>
+  <text x="300" y="90" font-family="'Noto Sans Gujarati', sans-serif" font-size="24" font-weight="900" fill="#0f172a" text-anchor="middle">રાધે ક્રિએશન (RADHE CREATION)</text>
+  <text x="300" y="112" font-family="sans-serif" font-size="11" fill="#475569" text-anchor="middle">Ring Road Textile Market, Surat - 395002 | Mo. 98250 12345</text>
+  <line x1="40" y1="125" x2="560" y2="125" stroke="#e2e8f0" stroke-width="2"/>
+  <rect x="210" y="135" width="180" height="28" rx="6" fill="#0284c7"/>
+  <text x="300" y="154" font-family="'Noto Sans Gujarati', sans-serif" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">આવક ચલણ (INWARD SLIP)</text>
+  <rect x="40" y="180" width="520" height="70" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="55" y="205" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Challan No: <tspan fill="#0284c7" font-weight="900">RC-1048</tspan></text>
+  <text x="55" y="235" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Job-Worker: <tspan fill="#047857">Shree Hari Embroidery</tspan></text>
+  <text x="380" y="205" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Date: <tspan fill="#475569">24/10/2026</tspan></text>
+  <text x="380" y="235" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">City: <tspan fill="#475569">Surat (સુરત)</tspan></text>
+  <rect x="40" y="270" width="520" height="32" fill="#0f172a" rx="4"/>
+  <text x="60" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">SR</text>
+  <text x="110" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">DESIGN / PUNCH</text>
+  <text x="260" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">FABRIC TYPE</text>
+  <text x="400" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">AGREED RATE</text>
+  <text x="500" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">QTY</text>
+  <rect x="40" y="305" width="520" height="55" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.5"/>
+  <text x="60" y="337" font-family="sans-serif" font-size="12" fill="#334155">1</text>
+  <text x="110" y="328" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0284c7">D-1024</text>
+  <text x="110" y="348" font-family="sans-serif" font-size="11" fill="#64748b">Punch: SK-45 (28,000 st)</text>
+  <text x="260" y="337" font-family="sans-serif" font-size="12" fill="#1e293b">Fox Georgette</text>
+  <text x="400" y="337" font-family="sans-serif" font-size="13" font-weight="bold" fill="#047857">₹42.00 / Pc</text>
+  <text x="500" y="337" font-family="sans-serif" font-size="14" font-weight="900" fill="#0f172a">1200 PCS</text>
+  <rect x="40" y="365" width="520" height="35" fill="#e2e8f0"/>
+  <text x="320" y="388" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">TOTAL INWARD PIECES:</text>
+  <text x="490" y="388" font-family="sans-serif" font-size="14" font-weight="900" fill="#0284c7">1,200 PCS</text>
+  <rect x="40" y="420" width="520" height="90" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="55" y="445" font-family="'Noto Sans Gujarati', sans-serif" font-size="12" font-weight="bold" fill="#92400e">વિગત (Notes):</text>
+  <text x="55" y="470" font-family="'Noto Sans Gujarati', sans-serif" font-size="12" fill="#78350f">ગળા-દામન વર્ક, ૧૨૦૦ નંગ કટ પીસ, પંચિંગ SK-45 .DST, ભાવ ₹૪૨/પીસ નક્કી કરેલ છે.</text>
+  <text x="55" y="492" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" fill="#b45309">કાચો માલ પરત હિસાબમાં ₹૦ ગણવો. કાસર ૨% મર્યાદા રહેશે.</text>
+  <g transform="translate(420, 620) rotate(-12)">
+    <circle cx="50" cy="50" r="45" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="3 2"/>
+    <text x="50" y="42" font-family="sans-serif" font-size="10" font-weight="bold" fill="#dc2626" text-anchor="middle">RADHE CREATION</text>
+    <text x="50" y="58" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" font-weight="bold" fill="#dc2626" text-anchor="middle">સુરત</text>
+    <text x="50" y="72" font-family="sans-serif" font-size="9" font-weight="bold" fill="#dc2626" text-anchor="middle">RECEIVED OK</text>
+  </g>
+  <line x1="60" y1="720" x2="200" y2="720" stroke="#64748b" stroke-width="1"/>
+  <text x="130" y="738" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" fill="#475569" text-anchor="middle">માલ આપનાર સહી</text>
+  <line x1="400" y1="720" x2="540" y2="720" stroke="#64748b" stroke-width="1"/>
+  <text x="470" y="738" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" fill="#475569" text-anchor="middle">સ્વીકારનાર સહી (કારખાનું)</text>
+</svg>

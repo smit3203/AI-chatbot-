@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import UniqueConstraint, Column, BigInteger
 from pydantic import BaseModel, Field as PydanticField
 
 # --- ENUMS ---
@@ -49,6 +50,9 @@ class Party(SQLModel, table=True):
 
 class Challan(SQLModel, table=True):
     __tablename__ = "challans"
+    __table_args__ = (
+        UniqueConstraint("party_id", "challan_number", "challan_type", name="uq_party_challan_type"),
+    )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     challan_type: ChallanType = Field(index=True)
@@ -99,12 +103,12 @@ class MachineShift(SQLModel, table=True):
     shift_type: ShiftType = Field(default=ShiftType.DAY)
     shift_date: date = Field(default_factory=date.today)
     operator_name: str = Field(max_length=100)
-    start_stitch_counter: int = Field(default=0)
-    end_stitch_counter: int = Field(default=0)
-    total_stitches: int = Field(default=0)
+    start_stitch_counter: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, default=0))
+    end_stitch_counter: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, default=0))
+    total_stitches: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, default=0))
     
     # v2.0 Extensions: Persisted shift analytics and bonus
-    target_stitches: int = Field(default=400000)
+    target_stitches: int = Field(default=400000, sa_column=Column(BigInteger, nullable=False, default=400000))
     efficiency_pct: float = Field(default=0.0)
     bonus_earned_inr: float = Field(default=0.0)
     is_low_efficiency_alert: bool = Field(default=False)
@@ -147,6 +151,10 @@ class ChallanCreate(BaseModel):
     fabric_type: str = "Fox Georgette"
     total_quantity: float
     unit: UnitType = UnitType.PCS
+    fresh_quantity: Optional[float] = None
+    returned_raw_quantity: Optional[float] = None
+    kasar_quantity: Optional[float] = None
+    fent_quantity: Optional[float] = None
     photo_url: Optional[str] = None
     design_photo_url: Optional[str] = None
     notes: Optional[str] = None

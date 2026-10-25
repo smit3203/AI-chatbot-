@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="100%" height="100%">
+  <rect width="600" height="800" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="20" y="20" width="560" height="760" fill="none" stroke="#059669" stroke-width="2"/>
+  <text x="300" y="55" font-family="'Noto Sans Gujarati', sans-serif" font-size="14" font-weight="bold" fill="#065f46" text-anchor="middle">|| શ્રી ઉમિયા માતાય નમઃ ||</text>
+  <text x="300" y="90" font-family="'Noto Sans Gujarati', sans-serif" font-size="24" font-weight="900" fill="#0f172a" text-anchor="middle">મારુતિ એમ્બ્રોઇડરી (MARUTI EMBROIDERY)</text>
+  <text x="300" y="112" font-family="sans-serif" font-size="11" fill="#475569" text-anchor="middle">Narol Textile GIDC, Ahmedabad - 382405 | Mo. 98980 67890</text>
+  <line x1="40" y1="125" x2="560" y2="125" stroke="#a7f3d0" stroke-width="2"/>
+  <rect x="190" y="135" width="220" height="28" rx="6" fill="#059669"/>
+  <text x="300" y="154" font-family="'Noto Sans Gujarati', sans-serif" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">જાવક ડિલિવરી ચલણ (OUTWARD SLIP)</text>
+  <rect x="40" y="180" width="520" height="70" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="55" y="205" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Outward Slip No: <tspan fill="#059669" font-weight="900">ME-802</tspan></text>
+  <text x="55" y="235" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Against Inward Lot: <tspan fill="#475569">ME-101 (800 Pcs)</tspan></text>
+  <text x="380" y="205" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Date: <tspan fill="#475569">24/10/2026</tspan></text>
+  <text x="380" y="235" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Design: <tspan fill="#0284c7">D-402 (MR-12)</tspan></text>
+  <rect x="40" y="270" width="520" height="32" fill="#065f46" rx="4"/>
+  <text x="60" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">CATEGORY</text>
+  <text x="220" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">PARTICULARS</text>
+  <text x="380" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">BILLING RATE</text>
+  <text x="490" y="291" font-family="sans-serif" font-size="11" font-weight="bold" fill="#ffffff">DISPATCH QTY</text>
+  <rect x="40" y="305" width="520" height="150" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.5"/>
+  <text x="60" y="330" font-family="sans-serif" font-size="12" font-weight="bold" fill="#047857">1. FRESH (તૈયાર)</text>
+  <text x="220" y="330" font-family="sans-serif" font-size="12" fill="#1e293b">Finished Embroidered Silk</text>
+  <text x="380" y="330" font-family="sans-serif" font-size="12" font-weight="bold" fill="#047857">₹35.00 / Pc</text>
+  <text x="500" y="330" font-family="sans-serif" font-size="13" font-weight="900" fill="#047857">400 PCS</text>
+  <line x1="45" y1="345" x2="555" y2="345" stroke="#f1f5f9"/>
+  <text x="60" y="367" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0284c7">2. RAW RET. (કાચો પરત)</text>
+  <text x="220" y="367" font-family="sans-serif" font-size="12" fill="#1e293b">Unembroidered Grey Fabric</text>
+  <text x="380" y="367" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b">₹0.00 (Unbilled)</text>
+  <text x="500" y="367" font-family="sans-serif" font-size="13" font-weight="900" fill="#0284c7">50 PCS</text>
+  <line x1="45" y1="382" x2="555" y2="382" stroke="#f1f5f9"/>
+  <text x="60" y="404" font-family="sans-serif" font-size="12" font-weight="bold" fill="#e11d48">3. KASAR (કાસર)</text>
+  <text x="220" y="404" font-family="sans-serif" font-size="12" fill="#1e293b">Thread Defect / Shortage</text>
+  <text x="380" y="404" font-family="sans-serif" font-size="12" fill="#64748b">-</text>
+  <text x="500" y="404" font-family="sans-serif" font-size="13" font-weight="bold" fill="#e11d48">20 PCS</text>
+  <line x1="45" y1="419" x2="555" y2="419" stroke="#f1f5f9"/>
+  <text x="60" y="441" font-family="sans-serif" font-size="12" font-weight="bold" fill="#d97706">4. FENT (ફેંટ)</text>
+  <text x="220" y="441" font-family="sans-serif" font-size="12" fill="#1e293b">Fabric Cut Piece Remnants</text>
+  <text x="380" y="441" font-family="sans-serif" font-size="12" fill="#64748b">-</text>
+  <text x="500" y="441" font-family="sans-serif" font-size="13" font-weight="bold" fill="#d97706">10 PCS</text>
+  <rect x="40" y="465" width="520" height="40" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="60" y="490" font-family="sans-serif" font-size="12" font-weight="bold" fill="#065f46">TOTAL DISPATCHED: 480 PCS</text>
+  <text x="340" y="490" font-family="sans-serif" font-size="12" font-weight="bold" fill="#047857">BILLABLE AMOUNT: ₹14,000.00</text>
+  <g transform="translate(420, 620) rotate(-8)">
+    <circle cx="50" cy="50" r="45" fill="none" stroke="#059669" stroke-width="2.5" stroke-dasharray="3 2"/>
+    <text x="50" y="42" font-family="sans-serif" font-size="10" font-weight="bold" fill="#059669" text-anchor="middle">DISPATCH PASS</text>
+    <text x="50" y="58" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" font-weight="bold" fill="#059669" text-anchor="middle">મારુતિ - સુરત</text>
+    <text x="50" y="72" font-family="sans-serif" font-size="9" font-weight="bold" fill="#059669" text-anchor="middle">APPROVED</text>
+  </g>
+  <line x1="60" y1="720" x2="200" y2="720" stroke="#64748b" stroke-width="1"/>
+  <text x="130" y="738" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" fill="#475569" text-anchor="middle">ડિસ્પેચ માસ્ટર સહી</text>
+  <line x1="400" y1="720" x2="540" y2="720" stroke="#64748b" stroke-width="1"/>
+  <text x="470" y="738" font-family="'Noto Sans Gujarati', sans-serif" font-size="11" fill="#475569" text-anchor="middle">ટેમ્પો ડ્રાઈવર સહી</text>
+</svg>

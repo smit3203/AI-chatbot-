@@ -202,6 +202,20 @@ export const translations = {
     speedOutwardDispatch: "📦 જાવક નોંધો (Dispatch)",
     speedLogUpaad: "💸 કારીગર ઉપાડ લખો",
     speedStitchQuote: "🧮 સ્ટીચ ભાવ ગણો",
+
+    // Additional v2.0 Polish Keys
+    btnResetDemo: "🔄 ડેમો રીસેટ (Reset Demo)",
+    resetDemoSuccess: "ડેમો ડેટા સફળતાપૂર્વક રીસેટ થઈ ગયો!",
+    chipAllFresh: "બાકી બધો માલ ફ્રેશ (100%)",
+    chipPlus100: "+100 ફ્રેશ",
+    chipPlus200: "+200 ફ્રેશ",
+    previewNewPending: "નવી બાકી ગણતરી (Preview):",
+    previewBillable: "બિલિંગ રકમ:",
+    duplicateAlertTitle: "⚠️ ડુપ્લિકેટ ચલણ ચેતવણી (409 Conflict Guard)",
+    duplicateAlertMsg: "આ ચલણ નંબર આ વેપારી માટે પહેલેથી જ દાખલ થયેલ છે. સિસ્ટમ બેવડી એન્ટ્રી અટકાવે છે.",
+    photoModalTitle: "🖼️ ચલણ ફોટો પ્રૂફ (Challan / LCD Proof)",
+    btnJumpToLots: "📦 બાકી માલ લિસ્ટ જુઓ (View in Tab 2)",
+    billableEarnedSoFar: "કમાયેલ બિલ રકમ (Billable Earned):",
   },
 
   en: {
@@ -405,5 +419,19 @@ export const translations = {
     speedOutwardDispatch: "📦 Quick Outward Dispatch",
     speedLogUpaad: "💸 Log Karigar Advance",
     speedStitchQuote: "🧮 Quick Stitch Quote",
+
+    // Additional v2.0 Polish Keys
+    btnResetDemo: "🔄 Reset Demo",
+    resetDemoSuccess: "Demo database reset to v2.0 canonical state!",
+    chipAllFresh: "100% Remaining Fresh",
+    chipPlus100: "+100 Fresh",
+    chipPlus200: "+200 Fresh",
+    previewNewPending: "New Pending Balance (Preview):",
+    previewBillable: "Billable Amount:",
+    duplicateAlertTitle: "⚠️ Duplicate Slip Alert (409 Conflict Guard)",
+    duplicateAlertMsg: "This challan number is already registered for this party. Double-entry was blocked.",
+    photoModalTitle: "🖼️ Challan Photo Proof (Original Slip / LCD)",
+    btnJumpToLots: "📦 View in Pending Lots (Tab 2)",
+    billableEarnedSoFar: "Billable Amount Earned So Far:",
   },
 };
