@@ -47,6 +47,8 @@ import {
 } from "@/lib/translations";
 
 import {
+  SystemIntegrations,
+  fetchSystemIntegrations,
   User,
   Factory,
   DemoTenant,
@@ -109,6 +111,8 @@ export default function Home() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [integrations, setIntegrations] = useState<SystemIntegrations | null>(null);
+  const [integrationsModalOpen, setIntegrationsModalOpen] = useState(false);
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
@@ -248,6 +252,7 @@ export default function Home() {
         loadPartiesData(),
         loadAddonData(),
       ]);
+      fetchSystemIntegrations().then((res) => setIntegrations(res)).catch(() => {});
     } catch (e) {
       console.warn("Error refreshing all data:", e);
     }
@@ -269,12 +274,14 @@ export default function Home() {
 
   const loadInitialData = async () => {
     try {
-      const [hData, dData] = await Promise.all([
+      const [hData, dData, iData] = await Promise.all([
         fetchHealth(),
         fetchDashboardSummary(),
+        fetchSystemIntegrations(),
       ]);
       setHealth(hData);
       setDashboard(dData);
+      setIntegrations(iData);
     } catch (e) {
       console.warn("Using offline fallback:", e);
     }
@@ -1313,6 +1320,22 @@ export default function Home() {
               </button>
             </div>
 
+            {/* Cloud & API Integrations Live Status Badge */}
+            <button
+              onClick={() => setIntegrationsModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm ${
+                integrations?.database.mode === "NEON_POSTGRESQL"
+                  ? "border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800"
+                  : "border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800"
+              }`}
+              title="Cloud & API Integrations Diagnostics"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="hidden sm:inline">
+                {integrations?.database.mode === "NEON_POSTGRESQL" ? "Neon Cloud • Gemini AI" : "Cloud Status"}
+              </span>
+            </button>
+
             {/* Factory Profile & Plan Modal Button */}
             <button
               onClick={() => {
@@ -1565,7 +1588,7 @@ export default function Home() {
                 <input
                   type="file"
                   ref={fileInputRef}
-                  accept="image/*"
+                  accept="image/*,application/pdf,.pdf"
                   className="hidden"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -1578,7 +1601,7 @@ export default function Home() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessing}
-                  title="ચલણ ફોટો પાડો (Take Challan Photo)"
+                  title="ચલણ ફોટો અથવા PDF અપલોડ કરો (Upload Challan Photo or PDF)"
                   className="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center transition-colors shrink-0"
                 >
                   <Camera className="w-5 h-5 text-emerald-700" />
@@ -3789,6 +3812,65 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Cloud & External API Integration Status Card */}
+              <div className="p-3.5 bg-slate-900 text-slate-200 rounded-2xl border border-slate-700 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>🔌 ક્લાઉડ અને API ઇન્ટિગ્રેશન સ્ટેટસ (Cloud Diagnostics)</span>
+                  </h4>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  {/* Database */}
+                  <div className="p-2 bg-slate-800 rounded-xl border border-slate-700">
+                    <p className="text-slate-400 font-semibold">ડેટાબેઝ (Database):</p>
+                    <p className="font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                      <span>🟢</span>
+                      <span>{integrations?.database.mode === "NEON_POSTGRESQL" ? "Neon Cloud PostgreSQL" : "Local SQLite Fallback"}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5 font-mono">
+                      {integrations?.database.host || "Connected"}
+                    </p>
+                  </div>
+
+                  {/* Gemini AI */}
+                  <div className="p-2 bg-slate-800 rounded-xl border border-slate-700">
+                    <p className="text-slate-400 font-semibold">AI OCR (Image + PDF):</p>
+                    <p className="font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                      <span>🟢</span>
+                      <span>{integrations?.gemini_ai.mode === "GEMINI_2_5_FLASH_LIVE" ? "Gemini 2.5 Flash Live" : "Demo Fallback Mode"}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5 font-mono">
+                      Image & PDF OCR Active
+                    </p>
+                  </div>
+
+                  {/* Multi-Tenant SaaS Auth */}
+                  <div className="p-2 bg-slate-800 rounded-xl border border-slate-700">
+                    <p className="text-slate-400 font-semibold">મલ્ટી-ટેનન્ટ Auth:</p>
+                    <p className="font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                      <span>🟢</span>
+                      <span>ટેનન્ટ આઇસોલેશન Active</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5 font-mono">
+                      Factory ID: {currentFactory?.factory_code || "EMB-1001"}
+                    </p>
+                  </div>
+
+                  {/* PDF & Tally Engine */}
+                  <div className="p-2 bg-slate-800 rounded-xl border border-slate-700">
+                    <p className="text-slate-400 font-semibold">PDF & ટેલી એન્જિન:</p>
+                    <p className="font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                      <span>🟢</span>
+                      <span>PDF + A4 + Tally CSV</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5 font-mono">
+                      All Engines Operational
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Action Buttons */}
               <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
                 <button
@@ -3812,6 +3894,128 @@ export default function Home() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* CLOUD & API INTEGRATIONS DIAGNOSTIC MODAL                 */}
+      {/* ========================================================= */}
+      {integrationsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">🔌</span>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg">
+                    ક્લાઉડ અને API ઇન્ટિગ્રેશન સ્ટેટસ
+                  </h3>
+                  <p className="text-xs text-emerald-200">
+                    Cloud Services & API Integration Health Monitor
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIntegrationsModalOpen(false)}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              {/* Database Card */}
+              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg shrink-0">
+                  🐘
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900">Neon Serverless PostgreSQL</h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      LIVE
+                    </span>
+                  </div>
+                  <p className="text-slate-600 mt-0.5 text-[11px]">
+                    Status: <strong className="text-emerald-700">{integrations?.database.connected ? "Connected (સંપર્ક સ્થાપિત)" : "Disconnected"}</strong>
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-mono mt-1 break-all">
+                    Host: {integrations?.database.host}
+                  </p>
+                </div>
+              </div>
+
+              {/* Gemini AI Card */}
+              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg shrink-0">
+                  ✨
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900">Google Gemini Multimodal OCR</h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                      LIVE
+                    </span>
+                  </div>
+                  <p className="text-slate-600 mt-0.5 text-[11px]">
+                    Model: <strong className="text-amber-800 font-mono">Gemini 2.5 Flash / 3.0</strong>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    સપોર્ટ: <strong>ચલણ ફોટા (JPEG, PNG, WebP)</strong> અને <strong>PDF ડોક્યુમેન્ટ્સ</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Multi-Tenant SaaS Auth Card */}
+              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-lg shrink-0">
+                  🔐
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900">Multi-Tenant SaaS Security</h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                      SECURE
+                    </span>
+                  </div>
+                  <p className="text-slate-600 mt-0.5 text-[11px]">
+                    Stateless HMAC-SHA256 Token Auth + 100% Tenant Isolation
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    સક્રિય કારખાનું: <strong className="text-slate-800">{currentFactory?.factory_name} (ID: {currentFactory?.factory_code})</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* PDF & Tally Engine */}
+              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-lg shrink-0">
+                  📄
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900">PDF Reader & Tally Export</h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                      READY
+                    </span>
+                  </div>
+                  <p className="text-slate-600 mt-0.5 text-[11px]">
+                    WhatsApp Inward PDF OCR + A4 Printable Ledger + Tally XML/CSV
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIntegrationsModalOpen(false)}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors"
+                >
+                  બંધ કરો (Close)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

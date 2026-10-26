@@ -8,7 +8,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 from uuid import UUID
 
-SECRET_KEY = os.getenv("SECRET_KEY", "challan-ai-embroidery-os-multi-tenant-secret-2026")
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or os.getenv("SECRET_KEY") or "challan_ai_v3_multi_tenant_b2b_saas_sec_8e57f2098b67d512a86c04f91de0347a"
 TOKEN_EXPIRE_DAYS = 30
 
 
