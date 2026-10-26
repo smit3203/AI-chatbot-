@@ -787,40 +787,40 @@ export default function Home() {
                 <button
                   onClick={() => triggerPreset("preset_radhe_inward.jpg")}
                   disabled={isProcessing}
-                  className="text-left px-3 py-2 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between group"
+                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between gap-2 group"
                 >
-                  <span className="truncate">{t.presetRadhe}</span>
-                  <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-mono">
+                  <span className="leading-tight">{t.presetRadhe}</span>
+                  <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-mono shrink-0">
                     1200 PC
                   </span>
                 </button>
                 <button
                   onClick={() => triggerPreset("preset_maruti_outward.jpg")}
                   disabled={isProcessing}
-                  className="text-left px-3 py-2 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between group"
+                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between gap-2 group"
                 >
-                  <span className="truncate">{t.presetMaruti}</span>
-                  <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">
+                  <span className="leading-tight">{t.presetMaruti}</span>
+                  <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono shrink-0">
                     Tranche
                   </span>
                 </button>
                 <button
                   onClick={() => triggerPreset("preset_duplicate_guard.jpg")}
                   disabled={isProcessing}
-                  className="text-left px-3 py-2 bg-white rounded-xl border border-rose-200 hover:border-rose-400 hover:shadow-sm text-xs font-semibold text-rose-800 transition-all flex items-center justify-between group"
+                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-rose-200 hover:border-rose-400 hover:shadow-sm text-xs font-semibold text-rose-800 transition-all flex items-center justify-between gap-2 group"
                 >
-                  <span className="truncate">{t.presetDuplicate}</span>
-                  <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-mono">
+                  <span className="leading-tight">{t.presetDuplicate}</span>
+                  <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-mono shrink-0">
                     409 Guard
                   </span>
                 </button>
                 <button
                   onClick={() => triggerPreset("preset_dahao_lcd.jpg")}
                   disabled={isProcessing}
-                  className="text-left px-3 py-2 bg-white rounded-xl border border-indigo-200 hover:border-indigo-400 hover:shadow-sm text-xs font-semibold text-indigo-800 transition-all flex items-center justify-between group"
+                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-indigo-200 hover:border-indigo-400 hover:shadow-sm text-xs font-semibold text-indigo-800 transition-all flex items-center justify-between gap-2 group"
                 >
-                  <span className="truncate">{t.presetDahao}</span>
-                  <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono">
+                  <span className="leading-tight">{t.presetDahao}</span>
+                  <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono shrink-0">
                     LCD OCR
                   </span>
                 </button>
@@ -1395,7 +1395,7 @@ export default function Home() {
               </div>
 
               {/* Inputs Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">
                     {t.stitchCount}
@@ -1462,6 +1462,24 @@ export default function Home() {
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl font-mono focus:border-amber-500 focus:outline-none"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">લાઈટ + કારીગર પગાર: ₹2,200</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    {t.materialCost}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={calcInputs.material_cost_per_piece}
+                    onChange={(e) => {
+                      const updated = { ...calcInputs, material_cost_per_piece: Number(e.target.value) };
+                      setCalcInputs(updated);
+                      recalcQuote(updated);
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl font-mono focus:border-amber-500 focus:outline-none text-emerald-800 font-bold"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">દોરો + જરી + પેપર ખર્ચ</span>
                 </div>
               </div>
 
@@ -1943,7 +1961,7 @@ export default function Home() {
                         <th className="p-2 border border-slate-300">{t.tblDesignPunch}</th>
                         <th className="p-2 border border-slate-300 text-emerald-700">{t.tblFresh}</th>
                         <th className="p-2 border border-slate-300 text-blue-700">{t.tblReturnedRaw}</th>
-                        <th className="p-2 border border-slate-300 text-rose-700">{t.tblKasar}</th>
+                        <th className="p-2 border border-slate-300 text-rose-700">KASAR + FENT (કસર+ફેંટ)</th>
                         <th className="p-2 border border-slate-300">{t.tblRate}</th>
                         <th className="p-2 border border-slate-300 font-bold">{t.tblBillableAmount}</th>
                         <th className="p-2 border border-slate-300 text-center">{t.tblPhotoProof}</th>
@@ -1993,7 +2011,18 @@ export default function Home() {
                           </td>
                           <td className="p-2 border border-slate-300 font-bold text-emerald-700">{out.fresh_quantity}</td>
                           <td className="p-2 border border-slate-300 font-bold text-blue-700">{out.returned_raw_quantity}</td>
-                          <td className="p-2 border border-slate-300 font-bold text-rose-700">{out.kasar_quantity}</td>
+                          <td className="p-2 border border-slate-300 font-bold text-rose-700">
+                            {out.fent_quantity > 0 ? (
+                              <span>
+                                {out.kasar_quantity + out.fent_quantity}{" "}
+                                <span className="text-[10px] font-normal text-rose-600 font-sans">
+                                  ({out.kasar_quantity} કસર + {out.fent_quantity} ફેંટ)
+                                </span>
+                              </span>
+                            ) : (
+                              <span>{out.kasar_quantity}</span>
+                            )}
+                          </td>
                           <td className="p-2 border border-slate-300">-</td>
                           <td className="p-2 border border-slate-300 font-extrabold text-slate-900">
                             ₹{out.billable_amount_inr.toLocaleString()}
