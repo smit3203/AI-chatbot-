@@ -3,12 +3,12 @@ import re
 import csv
 import io
 import urllib.parse
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse, JSONResponse, Response
@@ -16,6 +16,7 @@ from sqlmodel import Session, select, func
 
 from database import engine, get_session, init_db, DB_ENGINE_TYPE
 from models import (
+    Factory, User, UserRole, SubscriptionPlan, SubscriptionStatus,
     Party, Challan, ChallanType, UnitType, LotDelivery,
     MachineShift, ShiftType, RateQuote, MaterialType, LotStatus,
     ChallanCreate, ChallanRead, ChallanDetailRead,
@@ -25,16 +26,22 @@ from models import (
     PartyRead, PartyLedgerRead, PartySummaryRead,
     DashboardSummaryRead, AIChallanOCRResponse, AIMessageResponse,
     KarigarAdvance, KarigarAdvanceCreate, KarigarAdvanceRead, KarigarSalaryRecordRead,
-    DesignMasterRead, ConsumableStockRead, ConsumableToggleRequest
+    DesignMasterRead, ConsumableStockRead, ConsumableToggleRequest,
+    FactoryRegisterRequest, LoginRequest, UserRead, FactoryRead,
+    AuthResponse, FactoryProfileUpdateRequest, DemoTenantInfo
+)
+from auth import (
+    hash_password, verify_password,
+    create_access_token, decode_access_token
 )
 import ai_service
 from seed import seed_database
 
 # Initialize FastAPI App
 app = FastAPI(
-    title="ChallanAI (EmbroideryOS) API",
-    description="Backend API for Textile Job-Work Challan Reconciliation, AI Vision OCR & Shift Tracker",
-    version="2.0.0"
+    title="ChallanAI (EmbroideryOS) Multi-Tenant API",
+    description="Multi-Tenant B2B SaaS Platform for Gujarat Textile Embroidery Factories",
+    version="3.0.0"
 )
 
 # Configure CORS
@@ -55,13 +62,72 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 @app.on_event("startup")
 def on_startup():
-    """Startup initialization: auto-creates tables and seeds initial data if empty."""
+    """Startup initialization: auto-creates tables and seeds multi-tenant initial data if empty."""
     init_db()
     with Session(engine) as session:
-        first_party = session.exec(select(Party)).first()
-        if not first_party:
-            print("[ChallanAI Startup] Database is empty. Seeding initial test data...")
+        first_factory = session.exec(select(Factory)).first()
+        if not first_factory:
+            print("[ChallanAI Startup] Database is empty. Seeding initial multi-tenant test data...")
             seed_database()
+
+
+# --- MULTI-TENANT CONTEXT & DEPENDENCY ---
+
+class TenantContext:
+    """Holds active tenant Factory and User context for request scoping."""
+    def __init__(self, factory: Factory, user: Optional[User] = None):
+        self.factory = factory
+        self.user = user
+        self.factory_id = factory.id
+
+
+def get_current_tenant(
+    authorization: Optional[str] = Header(None),
+    x_factory_id: Optional[str] = Header(None, alias="X-Factory-Id"),
+    session: Session = Depends(get_session)
+) -> TenantContext:
+    """
+    Resolves the active tenant Factory and User:
+    1. Reads Bearer token from 'Authorization' header.
+    2. Fallback to 'X-Factory-Id' header if passed directly.
+    3. Safe default fallback to Tenant #1 (EMB-1001) for direct Swagger/test runs without headers.
+    """
+    # 1. Check Bearer Token
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        payload = decode_access_token(token)
+        if payload:
+            factory_id_str = payload.get("factory_id")
+            user_id_str = payload.get("user_id")
+            if factory_id_str:
+                try:
+                    factory = session.get(Factory, UUID(factory_id_str))
+                    if factory:
+                        user = session.get(User, UUID(user_id_str)) if user_id_str else None
+                        return TenantContext(factory=factory, user=user)
+                except Exception:
+                    pass
+
+    # 2. Check X-Factory-Id Header
+    if x_factory_id:
+        try:
+            factory = session.get(Factory, UUID(x_factory_id))
+            if factory:
+                user = session.exec(select(User).where(User.factory_id == factory.id)).first()
+                return TenantContext(factory=factory, user=user)
+        except Exception:
+            pass
+
+    # 3. Default fallback to Tenant #1 (EMB-1001) for backwards compatibility
+    factory = session.exec(select(Factory).order_by(Factory.created_at.asc())).first()
+    if factory:
+        user = session.exec(select(User).where(User.factory_id == factory.id)).first()
+        return TenantContext(factory=factory, user=user)
+
+    raise HTTPException(
+        status_code=401,
+        detail="કોઈ સક્રિય કારખાનું મળ્યું નથી. કૃપા કરીને લોગિન કરો. (No active tenant found. Please log in.)"
+    )
 
 
 # --- ROOT & FAVICON ROUTES ---
@@ -70,15 +136,19 @@ def on_startup():
 def root():
     """Root endpoint welcoming users and providing direct links to API docs and endpoints."""
     return {
-        "system": "ChallanAI (EmbroideryOS) API",
-        "version": "2.0.0",
+        "system": "ChallanAI (EmbroideryOS) Multi-Tenant API",
+        "version": "3.0.0",
         "status": "ONLINE",
+        "platform_type": "Multi-Tenant B2B SaaS",
         "cluster": "Gujarat Textile Hubs (Surat, Ahmedabad, Jetpur)",
         "database": DB_ENGINE_TYPE,
         "swagger_docs": "/docs",
         "redoc": "/redoc",
         "endpoints": {
             "health": "/api/health",
+            "auth_login": "/api/auth/login",
+            "auth_register": "/api/auth/register",
+            "demo_tenants": "/api/auth/demo-tenants",
             "dashboard_summary": "/api/dashboard/summary",
             "pending_lots": "/api/lots/pending",
             "parties": "/api/parties",
@@ -101,7 +171,8 @@ def health_check():
     return {
         "status": "ONLINE",
         "system": "ChallanAI (EmbroideryOS)",
-        "version": "2.0.0",
+        "version": "3.0.0",
+        "multi_tenant": True,
         "database_engine": DB_ENGINE_TYPE,
         "ai_service_mode": "GEMINI_2_5_FLASH" if ai_service.genai_client else "DETERMINISTIC_DEMO_PRESETS",
         "supported_languages": ["ગુજરાતી", "English"],
@@ -109,35 +180,306 @@ def health_check():
     }
 
 
-# --- 2. DASHBOARD KPI SUMMARY (v2.0) ---
+# --- 2. MULTI-TENANT AUTH & TENANT REGISTRATION ---
+
+@app.post("/api/auth/register", response_model=AuthResponse, status_code=201)
+def register_factory(payload: FactoryRegisterRequest, session: Session = Depends(get_session)):
+    """
+    Self-registration endpoint for new embroidery factory owners.
+    Creates a new isolated Factory Tenant (auto-generating EMB-XXXX code and 15-day trial),
+    creates the Owner User Account (USR-XXXX), and returns stateless auth token.
+    """
+    # 1. Check if mobile number or login already registered
+    existing_user = session.exec(select(User).where(User.login_id == payload.phone.strip())).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=409,
+            detail="આ મોબાઈલ નંબર સાથે પહેલેથી ખાતું નોંધાયેલ છે (Mobile number is already registered)"
+        )
+
+    # 2. Compute unique factory_code and user_code
+    existing_factories_count = session.exec(select(func.count(Factory.id))).one() or 0
+    code_index = 1001 + existing_factories_count
+    factory_code = f"EMB-{code_index}"
+    while session.exec(select(Factory).where(Factory.factory_code == factory_code)).first():
+        code_index += 1
+        factory_code = f"EMB-{code_index}"
+
+    user_code = f"USR-{code_index}"
+
+    now = datetime.now(timezone.utc)
+    trial_end = now + timedelta(days=15)
+
+    # 3. Create Factory Tenant
+    new_factory = Factory(
+        factory_code=factory_code,
+        factory_name=payload.factory_name.strip(),
+        owner_name=payload.owner_name.strip(),
+        phone=payload.phone.strip(),
+        city=payload.city.strip() if payload.city else "Surat",
+        address=payload.address.strip() if payload.address else "Plot 45, Embroidery Park, Varachha Road, Surat",
+        gstin=payload.gstin.strip() if payload.gstin else "24AAACS1234E1Z5",
+        bank_name=payload.bank_name.strip() if payload.bank_name else "HDFC Bank (Varachha Branch)",
+        bank_account_no=payload.bank_account_no.strip() if payload.bank_account_no else "50200089234120",
+        bank_ifsc=payload.bank_ifsc.strip() if payload.bank_ifsc else "HDFC0001234",
+        upi_id=payload.upi_id.strip() if payload.upi_id else "shreekrishna.embroidery@okaxis",
+        default_machine_heads=20,
+        subscription_plan=SubscriptionPlan.TRIAL_15_DAYS,
+        subscription_status=SubscriptionStatus.ACTIVE,
+        trial_ends_at=trial_end,
+        created_at=now
+    )
+    session.add(new_factory)
+    session.commit()
+    session.refresh(new_factory)
+
+    # 4. Create Owner User
+    hashed = hash_password(payload.password.strip())
+    new_user = User(
+        user_code=user_code,
+        factory_id=new_factory.id,
+        login_id=payload.phone.strip(),
+        password_hash=hashed,
+        full_name=payload.owner_name.strip(),
+        role=UserRole.OWNER,
+        created_at=now
+    )
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+
+    # 5. Optionally seed 1 starter party & lot for immediate onboarding gratification
+    if payload.seed_starter_lot:
+        starter_party = Party(
+            factory_id=new_factory.id,
+            name=f"Balaji Textiles ({new_factory.city})",
+            phone="+91 98251 00000",
+            city=new_factory.city
+        )
+        session.add(starter_party)
+        session.commit()
+        session.refresh(starter_party)
+
+        starter_lot = Challan(
+            factory_id=new_factory.id,
+            challan_type=ChallanType.INWARD,
+            party_id=starter_party.id,
+            challan_number="BT-101",
+            challan_date=date.today(),
+            design_number="D-101",
+            factory_punch_number="BP-01",
+            agreed_rate=40.0,
+            stitches_per_piece=25000,
+            fabric_type="Fox Georgette",
+            total_quantity=1000.0,
+            unit=UnitType.PCS,
+            notes="સ્વાગત લોટ - નવી કારખાનાની પ્રથમ એન્ટ્રી"
+        )
+        session.add(starter_lot)
+        session.commit()
+
+    user_role_str = new_user.role.value if hasattr(new_user.role, 'value') else str(new_user.role)
+    token = create_access_token(new_user.id, new_factory.id, user_role_str)
+
+    return AuthResponse(
+        token=token,
+        user=UserRead.model_validate(new_user, from_attributes=True),
+        factory=FactoryRead.model_validate(new_factory, from_attributes=True),
+        message="કારખાનું સફળતાપૂર્વક રજીસ્ટર થઈ ગયું! ૧૫ દિવસનો ફ્રી ટ્રાયલ શરૂ થઈ ગયો છે. (Factory registered! 15-day trial active.)"
+    )
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def login(payload: LoginRequest, session: Session = Depends(get_session)):
+    """
+    Authenticates user via Login ID (Mobile Number / User Code / Factory Code) and Password.
+    Returns stateless JWT-style token, User profile, and isolated Factory details.
+    """
+    login_id = payload.login_id.strip()
+
+    # 1. Match User by login_id or user_code
+    user = session.exec(
+        select(User).where((User.login_id == login_id) | (User.user_code == login_id))
+    ).first()
+
+    # 2. Or match by Factory Code or Factory Phone
+    if not user:
+        matched_factory = session.exec(
+            select(Factory).where((Factory.factory_code == login_id) | (Factory.phone == login_id))
+        ).first()
+        if matched_factory:
+            user = session.exec(
+                select(User).where(User.factory_id == matched_factory.id, User.role == UserRole.OWNER)
+            ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="આ યુઝર આઈડી અથવા મોબાઈલ નંબર મળ્યો નથી (User ID or mobile not found)"
+        )
+
+    # 3. Verify Password
+    if not verify_password(payload.password.strip(), user.password_hash):
+        raise HTTPException(
+            status_code=401,
+            detail="પાસવર્ડ ખોટો છે (Incorrect password)"
+        )
+
+    factory = session.get(Factory, user.factory_id)
+    if not factory:
+        raise HTTPException(status_code=404, detail="કારખાનું મળ્યું નથી (Factory not found)")
+
+    user_role_str = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    token = create_access_token(user.id, factory.id, user_role_str)
+
+    return AuthResponse(
+        token=token,
+        user=UserRead.model_validate(user, from_attributes=True),
+        factory=FactoryRead.model_validate(factory, from_attributes=True),
+        message=f"સ્વાગત છે {user.full_name}! {factory.factory_name} માં સફળતાપૂર્વક લોગિન થઈ ગયું."
+    )
+
+
+@app.get("/api/auth/me")
+def get_me(tenant: TenantContext = Depends(get_current_tenant), session: Session = Depends(get_session)):
+    """Returns the profile of the currently authenticated User and Factory tenant."""
+    user = tenant.user
+    if not user:
+        user = session.exec(select(User).where(User.factory_id == tenant.factory.id)).first()
+
+    days_left = 30
+    if tenant.factory.trial_ends_at:
+        now = datetime.now(timezone.utc)
+        diff = (tenant.factory.trial_ends_at - now).days
+        days_left = max(0, diff)
+
+    return {
+        "user": UserRead.model_validate(user, from_attributes=True) if user else None,
+        "factory": FactoryRead.model_validate(tenant.factory, from_attributes=True),
+        "days_remaining": days_left
+    }
+
+
+@app.put("/api/auth/factory-profile", response_model=FactoryRead)
+def update_factory_profile(
+    payload: FactoryProfileUpdateRequest,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Allows logged-in factory owner to update their factory branding, GSTIN, bank, and UPI details."""
+    factory = session.get(Factory, tenant.factory.id)
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
+
+    if payload.factory_name is not None:
+        factory.factory_name = payload.factory_name.strip()
+    if payload.owner_name is not None:
+        factory.owner_name = payload.owner_name.strip()
+    if payload.phone is not None:
+        factory.phone = payload.phone.strip()
+    if payload.city is not None:
+        factory.city = payload.city.strip()
+    if payload.address is not None:
+        factory.address = payload.address.strip()
+    if payload.gstin is not None:
+        factory.gstin = payload.gstin.strip()
+    if payload.bank_name is not None:
+        factory.bank_name = payload.bank_name.strip()
+    if payload.bank_account_no is not None:
+        factory.bank_account_no = payload.bank_account_no.strip()
+    if payload.bank_ifsc is not None:
+        factory.bank_ifsc = payload.bank_ifsc.strip()
+    if payload.upi_id is not None:
+        factory.upi_id = payload.upi_id.strip()
+    if payload.default_machine_heads is not None:
+        factory.default_machine_heads = payload.default_machine_heads
+    if payload.subscription_plan is not None:
+        factory.subscription_plan = payload.subscription_plan
+
+    session.add(factory)
+    session.commit()
+    session.refresh(factory)
+    return FactoryRead.model_validate(factory, from_attributes=True)
+
+
+@app.get("/api/auth/demo-tenants", response_model=List[DemoTenantInfo])
+def list_demo_tenants(session: Session = Depends(get_session)):
+    """Returns pre-seeded demo accounts for 1-click instant tenant switching during investor/client demos."""
+    factories = session.exec(select(Factory).order_by(Factory.factory_code.asc())).all()
+    output = []
+    for f in factories:
+        primary_user = session.exec(select(User).where(User.factory_id == f.id)).first()
+        login_id = primary_user.login_id if primary_user else f.phone
+        if f.factory_code == "EMB-1001":
+            desc = "સુરત ક્લસ્ટર - ૪ પાર્ટીઓ (રાધે, મારુતિ, શિવમ, ખોડિયાર), ૧૨૦૦ નંગ લોટ, ૪ મશીન શિફ્ટ"
+        elif f.factory_code == "EMB-1002":
+            desc = "અમદાવાદ ક્લસ્ટર - ૨ અલગ પાર્ટીઓ (બંસી એથનિક, કર્ણાવતી), સ્વતંત્ર ડેટા અને કોટક બેંક હિસાબ"
+        else:
+            desc = f"{f.city} ક્લસ્ટર - સ્વતંત્ર કારખાનું ટેનન્ટ ડેટા"
+
+        output.append(
+            DemoTenantInfo(
+                factory_id=f.id,
+                factory_code=f.factory_code,
+                factory_name=f.factory_name,
+                owner_name=f.owner_name,
+                city=f.city,
+                login_id=login_id,
+                demo_password="123456",
+                description=desc,
+                subscription_plan=f.subscription_plan
+            )
+        )
+    return output
+
+
+# --- 3. DASHBOARD KPI SUMMARY (TENANT SCOPED) ---
 
 @app.get("/api/dashboard/summary", response_model=DashboardSummaryRead)
-def get_dashboard_summary(session: Session = Depends(get_session)):
-    """Computes top-level operational KPIs for the factory dashboard ribbon."""
-    inwards = session.exec(select(Challan).where(Challan.challan_type == ChallanType.INWARD)).all()
-    
+def get_dashboard_summary(
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Computes top-level operational KPIs isolated to the active factory tenant."""
+    inwards = session.exec(
+        select(Challan).where(
+            Challan.factory_id == tenant.factory_id,
+            Challan.challan_type == ChallanType.INWARD
+        )
+    ).all()
+
     total_pending_pcs = 0.0
     total_pending_mtr = 0.0
     active_lots_count = 0
     estimated_pending_billing_inr = 0.0
 
     for inward in inwards:
-        deliveries = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inward.id)).all()
+        deliveries = session.exec(
+            select(LotDelivery).where(
+                LotDelivery.factory_id == tenant.factory_id,
+                LotDelivery.inward_challan_id == inward.id
+            )
+        ).all()
         accounted = sum(d.fresh_quantity + d.returned_raw_quantity + d.kasar_quantity + d.fent_quantity for d in deliveries)
         pending = max(0.0, inward.total_quantity - accounted)
-        
+
         if pending > 0:
             active_lots_count += 1
             if inward.unit == UnitType.PCS:
                 total_pending_pcs += pending
             else:
                 total_pending_mtr += pending
-            
+
             rate = inward.agreed_rate if inward.agreed_rate > 0 else 35.0
             estimated_pending_billing_inr += pending * rate
 
-    # Low efficiency shifts count
-    low_shifts = session.exec(select(MachineShift).where(MachineShift.is_low_efficiency_alert == True)).all()
+    # Low efficiency shifts count for this factory
+    low_shifts = session.exec(
+        select(MachineShift).where(
+            MachineShift.factory_id == tenant.factory_id,
+            MachineShift.is_low_efficiency_alert == True
+        )
+    ).all()
 
     return DashboardSummaryRead(
         total_pending_pcs=round(total_pending_pcs, 1),
@@ -150,40 +492,53 @@ def get_dashboard_summary(session: Session = Depends(get_session)):
     )
 
 
-# --- 2B. 1-CLICK DEMO RESET ENDPOINT ---
+# --- 3B. 1-CLICK DEMO RESET ENDPOINT ---
 
 @app.post("/api/demo/reset")
 def reset_demo_database():
     """
     1-Click Demo Reset: Wipes all temporary test records and cleanly
-    reseeds the canonical v2.0 Gujarat EmbroideryOS dataset.
+    reseeds the canonical v3.0 Gujarat EmbroideryOS multi-tenant dataset.
     """
     seed_database()
     return {
         "success": True,
-        "message": "ડેમો ડેટા સફળતાપૂર્વક રીસેટ થઈ ગયો (Demo database successfully reset to v2.0 canonical state)",
+        "message": "ડેમો ડેટા સફળતાપૂર્વક રીસેટ થઈ ગયો (Demo database successfully reset to v3.0 multi-tenant state)",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
-# --- 3. CHALLAN MANAGEMENT & DUPLICATE GUARD ---
+# --- 4. CHALLAN MANAGEMENT & DUPLICATE GUARD (TENANT SCOPED) ---
 
 @app.post("/api/challans", response_model=ChallanRead, status_code=201)
-def create_challan(payload: ChallanCreate, session: Session = Depends(get_session)):
+def create_challan(
+    payload: ChallanCreate,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
     """
-    Creates an Inward or Outward Challan with Duplicate Challan Guard protection.
-    Prevents duplicate slip numbers for the same party and challan type.
-    When an OUTWARD challan is created, automatically finds the matching active
-    INWARD lot for (party, design) and registers the LotDelivery with 102% Overdelivery Guard!
+    Creates an Inward or Outward Challan with Multi-Tenant Duplicate Challan Guard protection.
+    Prevents duplicate slip numbers for the same party and challan type within this factory.
     """
-    # 1. Resolve Party
+    # 1. Resolve Party within this Factory
     party = None
     if payload.party_id:
-        party = session.get(Party, payload.party_id)
+        party = session.exec(
+            select(Party).where(Party.id == payload.party_id, Party.factory_id == tenant.factory_id)
+        ).first()
     elif payload.party_name:
-        party = session.exec(select(Party).where(Party.name.ilike(f"%{payload.party_name.strip()}%"))).first()
+        party = session.exec(
+            select(Party).where(
+                Party.factory_id == tenant.factory_id,
+                Party.name.ilike(f"%{payload.party_name.strip()}%")
+            )
+        ).first()
         if not party:
-            party = Party(name=payload.party_name.strip(), city="Surat")
+            party = Party(
+                factory_id=tenant.factory_id,
+                name=payload.party_name.strip(),
+                city=tenant.factory.city
+            )
             session.add(party)
             session.commit()
             session.refresh(party)
@@ -191,9 +546,10 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
     if not party:
         raise HTTPException(status_code=404, detail="વેપારી ખાતું મળ્યું નથી (Party not found or specified)")
 
-    # 2. Duplicate Challan Guard (409 Conflict)
+    # 2. Multi-Tenant Duplicate Challan Guard (409 Conflict)
     duplicate = session.exec(
         select(Challan).where(
+            Challan.factory_id == tenant.factory_id,
             Challan.party_id == party.id,
             Challan.challan_number == payload.challan_number.strip(),
             Challan.challan_type == payload.challan_type
@@ -203,11 +559,12 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
     if duplicate:
         raise HTTPException(
             status_code=409,
-            detail=f"આ ચલણ નંબર '{payload.challan_number}' {party.name} માટે પહેલેથી જ નોંધાયેલ છે (Duplicate Challan Guard: This slip number is already registered)"
+            detail=f"આ ચલણ નંબર '{payload.challan_number}' {party.name} માટે પહેલેથી જ નોંધાયેલ છે (Duplicate Challan Guard: Slip number already registered for this tenant)"
         )
 
     # 3. Create Challan
     new_challan = Challan(
+        factory_id=tenant.factory_id,
         challan_type=payload.challan_type,
         party_id=party.id,
         challan_number=payload.challan_number.strip(),
@@ -227,7 +584,7 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
     session.commit()
     session.refresh(new_challan)
 
-    # 4. Auto-link OUTWARD challans to matching active INWARD lot
+    # 4. Auto-link OUTWARD challans to matching active INWARD lot within tenant
     if new_challan.challan_type == ChallanType.OUTWARD:
         fresh_qty = payload.fresh_quantity if payload.fresh_quantity is not None else payload.total_quantity
         raw_qty = payload.returned_raw_quantity or 0.0
@@ -238,6 +595,7 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
         inward_candidates = session.exec(
             select(Challan)
             .where(
+                Challan.factory_id == tenant.factory_id,
                 Challan.party_id == party.id,
                 Challan.challan_type == ChallanType.INWARD,
                 Challan.design_number.ilike(f"%{new_challan.design_number.strip()}%")
@@ -247,7 +605,12 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
 
         target_inward = None
         for inv in inward_candidates:
-            delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inv.id)).all()
+            delivs = session.exec(
+                select(LotDelivery).where(
+                    LotDelivery.factory_id == tenant.factory_id,
+                    LotDelivery.inward_challan_id == inv.id
+                )
+            ).all()
             accounted = sum(d.fresh_quantity + d.returned_raw_quantity + d.kasar_quantity + d.fent_quantity for d in delivs)
             if accounted < (inv.total_quantity * 1.02):
                 target_inward = inv
@@ -257,7 +620,12 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
             target_inward = inward_candidates[0]
 
         if target_inward:
-            delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == target_inward.id)).all()
+            delivs = session.exec(
+                select(LotDelivery).where(
+                    LotDelivery.factory_id == tenant.factory_id,
+                    LotDelivery.inward_challan_id == target_inward.id
+                )
+            ).all()
             existing_accounted = sum(d.fresh_quantity + d.returned_raw_quantity + d.kasar_quantity + d.fent_quantity for d in delivs)
             if (existing_accounted + total_accounted_this) > (target_inward.total_quantity * 1.02):
                 raise HTTPException(
@@ -266,6 +634,7 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
                 )
 
             delivery = LotDelivery(
+                factory_id=tenant.factory_id,
                 inward_challan_id=target_inward.id,
                 outward_challan_id=new_challan.id,
                 fresh_quantity=fresh_qty,
@@ -302,15 +671,16 @@ def create_challan(payload: ChallanCreate, session: Session = Depends(get_sessio
 def list_challans(
     party_id: Optional[UUID] = None,
     challan_type: Optional[ChallanType] = None,
+    tenant: TenantContext = Depends(get_current_tenant),
     session: Session = Depends(get_session)
 ):
-    """Lists challans with optional filtering by party and type."""
-    query = select(Challan)
+    """Lists challans strictly scoped to the authenticated factory tenant."""
+    query = select(Challan).where(Challan.factory_id == tenant.factory_id)
     if party_id:
         query = query.where(Challan.party_id == party_id)
     if challan_type:
         query = query.where(Challan.challan_type == challan_type)
-    
+
     query = query.order_by(Challan.created_at.desc())
     results = session.exec(query).all()
 
@@ -342,17 +712,26 @@ def list_challans(
 
 
 @app.get("/api/challans/{challan_id}", response_model=ChallanDetailRead)
-def get_challan_detail(challan_id: UUID, session: Session = Depends(get_session)):
+def get_challan_detail(
+    challan_id: UUID,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
     """Retrieves single challan with complete linked delivery audit trail."""
     challan = session.get(Challan, challan_id)
-    if not challan:
+    if not challan or challan.factory_id != tenant.factory_id:
         raise HTTPException(status_code=404, detail="ચલણ મળ્યું નથી (Challan not found)")
 
     party = session.get(Party, challan.party_id)
     linked_deliveries = []
-    
+
     if challan.challan_type == ChallanType.INWARD:
-        delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == challan.id)).all()
+        delivs = session.exec(
+            select(LotDelivery).where(
+                LotDelivery.factory_id == tenant.factory_id,
+                LotDelivery.inward_challan_id == challan.id
+            )
+        ).all()
         for d in delivs:
             out_c = session.get(Challan, d.outward_challan_id)
             linked_deliveries.append({
@@ -388,32 +767,43 @@ def get_challan_detail(challan_id: UUID, session: Session = Depends(get_session)
     )
 
 
-# --- 4. LOT RECONCILIATION & PARTIAL OUTWARD DISPATCH (v2.0) ---
+# --- 5. LOT RECONCILIATION & PARTIAL OUTWARD DISPATCH (TENANT SCOPED) ---
 
 @app.get("/api/lots/pending", response_model=List[PendingLotRead])
-def list_pending_lots(session: Session = Depends(get_session)):
+def list_pending_lots(
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
     """
     Computes real-time lot balances and reconciliation progress for Tab 2.
-    Tracks: Total Inward, Fresh Delivered, Returned Raw, Kasar, and Fent.
+    Strictly isolated to the authenticated factory tenant.
     """
     inwards = session.exec(
-        select(Challan).where(Challan.challan_type == ChallanType.INWARD).order_by(Challan.created_at.desc())
+        select(Challan).where(
+            Challan.factory_id == tenant.factory_id,
+            Challan.challan_type == ChallanType.INWARD
+        ).order_by(Challan.created_at.desc())
     ).all()
 
     output = []
     for inward in inwards:
         party = session.get(Party, inward.party_id)
-        delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inward.id)).all()
+        delivs = session.exec(
+            select(LotDelivery).where(
+                LotDelivery.factory_id == tenant.factory_id,
+                LotDelivery.inward_challan_id == inward.id
+            )
+        ).all()
 
         total_fresh = sum(d.fresh_quantity for d in delivs)
         total_raw_ret = sum(d.returned_raw_quantity for d in delivs)
         total_kasar = sum(d.kasar_quantity for d in delivs)
         total_fent = sum(d.fent_quantity for d in delivs)
-        
+
         total_accounted = total_fresh + total_raw_ret + total_kasar + total_fent
         pending = round(inward.total_quantity - total_accounted, 2)
         completion_pct = round((total_accounted / inward.total_quantity) * 100, 1) if inward.total_quantity > 0 else 0.0
-        
+
         # Commercial billing: only fresh quantity is billable!
         billable_inr = round(total_fresh * (inward.agreed_rate if inward.agreed_rate > 0 else 42.0), 2)
 
@@ -463,27 +853,33 @@ def list_pending_lots(session: Session = Depends(get_session)):
 def dispatch_partial_delivery(
     inward_id: UUID,
     payload: LotDispatchCreate,
+    tenant: TenantContext = Depends(get_current_tenant),
     session: Session = Depends(get_session)
 ):
     """
-    Logs partial outward delivery against an inward lot with v2.0 Overdelivery Guard.
+    Logs partial outward delivery against an inward lot with v2.0/v3.0 Overdelivery Guard.
     Accommodates Fresh Pieces, Returned Raw Fabric (unbilled), Kasar, and Fent.
     """
     inward = session.get(Challan, inward_id)
-    if not inward or inward.challan_type != ChallanType.INWARD:
+    if not inward or inward.factory_id != tenant.factory_id or inward.challan_type != ChallanType.INWARD:
         raise HTTPException(status_code=404, detail="આવક લોટ મળ્યો નથી (Inward lot record not found)")
 
     party = session.get(Party, inward.party_id)
     party_name = party.name if party else "Party"
 
     # Compute existing accounted quantity
-    existing_delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inward.id)).all()
+    existing_delivs = session.exec(
+        select(LotDelivery).where(
+            LotDelivery.factory_id == tenant.factory_id,
+            LotDelivery.inward_challan_id == inward.id
+        )
+    ).all()
     existing_accounted = sum(d.fresh_quantity + d.returned_raw_quantity + d.kasar_quantity + d.fent_quantity for d in existing_delivs)
 
     new_accounted = payload.fresh_quantity + payload.returned_raw_quantity + payload.kasar_quantity + payload.fent_quantity
     total_after = existing_accounted + new_accounted
 
-    # v2.0 Overdelivery Guard (allowing 2% meterage tolerance)
+    # Overdelivery Guard (allowing 2% meterage tolerance)
     if total_after > (inward.total_quantity * 1.02):
         raise HTTPException(
             status_code=400,
@@ -492,6 +888,7 @@ def dispatch_partial_delivery(
 
     # Create Outward Challan
     outward_challan = Challan(
+        factory_id=tenant.factory_id,
         challan_type=ChallanType.OUTWARD,
         party_id=inward.party_id,
         challan_number=payload.outward_challan_number.strip(),
@@ -512,6 +909,7 @@ def dispatch_partial_delivery(
 
     # Create LotDelivery Link
     delivery = LotDelivery(
+        factory_id=tenant.factory_id,
         inward_challan_id=inward.id,
         outward_challan_id=outward_challan.id,
         fresh_quantity=payload.fresh_quantity,
@@ -567,7 +965,7 @@ def dispatch_partial_delivery(
     )
 
 
-# --- 5. AI VISION OCR & VERNACULAR NLP ---
+# --- 6. AI VISION OCR & VERNACULAR NLP ---
 
 @app.post("/api/ai/parse-challan-image", response_model=AIChallanOCRResponse)
 async def parse_challan_image_endpoint(file: UploadFile = File(...)):
@@ -577,13 +975,11 @@ async def parse_challan_image_endpoint(file: UploadFile = File(...)):
     """
     file_bytes = await file.read()
     filename = file.filename or "uploaded_challan.jpg"
-    
-    # Save image to uploads folder
+
     save_path = UPLOAD_DIR / filename
     with open(save_path, "wb") as f:
         f.write(file_bytes)
 
-    # Process via AI Service
     parsed_data = ai_service.parse_challan_image(file_bytes, filename)
     parsed_data["photo_url"] = f"/uploads/{filename}"
 
@@ -601,13 +997,13 @@ def process_message_endpoint(payload: dict):
     return AIMessageResponse(**result)
 
 
-# --- 6. STITCH COSTING & SHIFT TRACKER ---
+# --- 7. STITCH COSTING & SHIFT TRACKER (TENANT SCOPED) ---
 
 @app.post("/api/calculator/quote", response_model=QuoteResponse)
 def calculate_stitch_quote(payload: QuoteRequest):
     """
     Computes machine batch runtime, pieces per shift, break-even cost,
-    and 25% profit margin party quotation.
+    and target profit margin party quotation.
     """
     eff = max(0.1, payload.efficiency_pct / 100.0)
     batch_mins = payload.stitch_count / (payload.rpm * eff)
@@ -634,10 +1030,14 @@ def calculate_stitch_quote(payload: QuoteRequest):
 
 
 @app.post("/api/shifts/log", response_model=ShiftLogRead, status_code=201)
-def log_machine_shift(payload: ShiftLogCreate, session: Session = Depends(get_session)):
+def log_machine_shift(
+    payload: ShiftLogCreate,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
     """
     Logs 12-hour machine shift LCD counters, persists target efficiency,
-    computes Karigar incentive bonus, and flags low-efficiency alert.
+    computes Karigar incentive bonus, and flags low-efficiency alert for this factory.
     """
     total = max(0, payload.end_stitch_counter - payload.start_stitch_counter)
     target = payload.target_stitches if payload.target_stitches > 0 else 400000
@@ -647,6 +1047,7 @@ def log_machine_shift(payload: ShiftLogCreate, session: Session = Depends(get_se
     alert = eff < 70.0 or payload.downtime_minutes > 90
 
     shift = MachineShift(
+        factory_id=tenant.factory_id,
         machine_number=payload.machine_number.strip(),
         shift_type=payload.shift_type,
         shift_date=payload.shift_date or date.today(),
@@ -691,16 +1092,24 @@ def log_machine_shift(payload: ShiftLogCreate, session: Session = Depends(get_se
 @app.get("/api/shifts/summary", response_model=ShiftSummaryRead)
 def get_shifts_summary(
     shift_date: Optional[date] = None,
+    tenant: TenantContext = Depends(get_current_tenant),
     session: Session = Depends(get_session)
 ):
-    """Retrieves machine shift comparison and bonus reports for a date."""
+    """Retrieves machine shift comparison and bonus reports for a date, scoped to active factory."""
     target_date = shift_date or date.today()
     shifts = session.exec(
-        select(MachineShift).where(MachineShift.shift_date == target_date).order_by(MachineShift.machine_number)
+        select(MachineShift).where(
+            MachineShift.factory_id == tenant.factory_id,
+            MachineShift.shift_date == target_date
+        ).order_by(MachineShift.machine_number)
     ).all()
 
     if not shifts:
-        shifts = session.exec(select(MachineShift).order_by(MachineShift.created_at.desc()).limit(10)).all()
+        shifts = session.exec(
+            select(MachineShift).where(
+                MachineShift.factory_id == tenant.factory_id
+            ).order_by(MachineShift.created_at.desc()).limit(10)
+        ).all()
 
     total_stitches = sum(s.total_stitches for s in shifts)
     total_bonus = sum(s.bonus_earned_inr for s in shifts)
@@ -740,15 +1149,26 @@ def get_shifts_summary(
     )
 
 
-# --- 7. PARTY LEDGER & TALLY PRIME EXPORT (v2.0) ---
+# --- 8. PARTY LEDGER & TALLY PRIME EXPORT (TENANT SCOPED) ---
 
 @app.get("/api/parties", response_model=List[PartyRead])
-def list_parties(session: Session = Depends(get_session)):
-    """Lists all registered parties with active lot count."""
-    parties = session.exec(select(Party).order_by(Party.name)).all()
+def list_parties(
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Lists all registered parties with active lot count strictly scoped to the active tenant."""
+    parties = session.exec(
+        select(Party).where(Party.factory_id == tenant.factory_id).order_by(Party.name)
+    ).all()
     output = []
     for p in parties:
-        inwards = session.exec(select(Challan).where(Challan.party_id == p.id, Challan.challan_type == ChallanType.INWARD)).all()
+        inwards = session.exec(
+            select(Challan).where(
+                Challan.factory_id == tenant.factory_id,
+                Challan.party_id == p.id,
+                Challan.challan_type == ChallanType.INWARD
+            )
+        ).all()
         output.append(
             PartyRead(
                 id=p.id,
@@ -763,17 +1183,25 @@ def list_parties(session: Session = Depends(get_session)):
 
 
 @app.get("/api/ledger/{party_id}", response_model=PartyLedgerRead)
-def get_party_ledger(party_id: UUID, session: Session = Depends(get_session)):
+def get_party_ledger(
+    party_id: UUID,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
     """
     Reconciles full Inward vs Outward statement for a party,
-    calculates net billable ₹ amount, and generates 1-click WhatsApp Udhari URL.
+    calculates net billable ₹ amount, and returns active factory profile for dynamic A4 branding!
     """
     party = session.get(Party, party_id)
-    if not party:
+    if not party or party.factory_id != tenant.factory_id:
         raise HTTPException(status_code=404, detail="વેપારી ખાતું મળ્યું નથી (Party not found)")
 
     inward_challans = session.exec(
-        select(Challan).where(Challan.party_id == party.id, Challan.challan_type == ChallanType.INWARD).order_by(Challan.challan_date)
+        select(Challan).where(
+            Challan.factory_id == tenant.factory_id,
+            Challan.party_id == party.id,
+            Challan.challan_type == ChallanType.INWARD
+        ).order_by(Challan.challan_date)
     ).all()
 
     total_inward = sum(c.total_quantity for c in inward_challans)
@@ -787,7 +1215,12 @@ def get_party_ledger(party_id: UUID, session: Session = Depends(get_session)):
     outward_records = []
 
     for inward in inward_challans:
-        delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inward.id)).all()
+        delivs = session.exec(
+            select(LotDelivery).where(
+                LotDelivery.factory_id == tenant.factory_id,
+                LotDelivery.inward_challan_id == inward.id
+            )
+        ).all()
         rate = inward.agreed_rate if inward.agreed_rate > 0 else 42.0
 
         inward_records.append({
@@ -828,14 +1261,14 @@ def get_party_ledger(party_id: UUID, session: Session = Depends(get_session)):
     total_accounted = total_fresh + total_returned_raw + total_kasar + total_fent
     pending_balance = round(total_inward - total_accounted, 2)
 
-    # WhatsApp Udhari prefilled polite message with sanitized phone
+    # WhatsApp Udhari prefilled polite message
     clean_party_phone = re.sub(r"\D", "", party.phone or "")
     if len(clean_party_phone) == 10:
         clean_party_phone = f"91{clean_party_phone}"
     elif not clean_party_phone:
         clean_party_phone = "919825012345"
     polite_msg = (
-        f"નમસ્તે {party.name}, ચલાન સેટલમેન્ટ મુજબ {int(total_fresh)} ફ્રેશ પીસ ચોખ્ખી કુલ બિલિંગ રકમ ₹{total_billable_amount:,.2f} થાય છે. "
+        f"નમસ્તે {party.name}, {tenant.factory.factory_name} ચલાન સેટલમેન્ટ મુજબ {int(total_fresh)} ફ્રેશ પીસ ચોખ્ખી કુલ બિલિંગ રકમ ₹{total_billable_amount:,.2f} થાય છે. "
         f"કાચો પરત: {int(total_returned_raw)} પીસ, કાસર: {int(total_kasar)} પીસ હિસાબમાં સમાયેલ છે. "
         f"ફોટો પ્રૂફ સાથે પૂરો હિસાબ જોવા કૃપા કરીને સંપર્ક કરો."
     )
@@ -852,6 +1285,22 @@ def get_party_ledger(party_id: UUID, session: Session = Depends(get_session)):
         settlement_status="COMPLETED" if pending_balance == 0 and total_inward > 0 else "PARTIALLY_DELIVERED"
     )
 
+    # Dynamic tenant branding dictionary for Tab 4 & A4 print
+    factory_profile_data = {
+        "factory_code": tenant.factory.factory_code,
+        "factory_name": tenant.factory.factory_name,
+        "owner_name": tenant.factory.owner_name,
+        "phone": tenant.factory.phone,
+        "city": tenant.factory.city,
+        "address": tenant.factory.address,
+        "gstin": tenant.factory.gstin,
+        "bank_name": tenant.factory.bank_name,
+        "bank_account_no": tenant.factory.bank_account_no,
+        "bank_ifsc": tenant.factory.bank_ifsc,
+        "upi_id": tenant.factory.upi_id,
+        "subscription_plan": tenant.factory.subscription_plan.value if hasattr(tenant.factory.subscription_plan, "value") else str(tenant.factory.subscription_plan)
+    }
+
     return PartyLedgerRead(
         party_id=party.id,
         party_name=party.name,
@@ -860,18 +1309,29 @@ def get_party_ledger(party_id: UUID, session: Session = Depends(get_session)):
         summary=summary,
         whatsapp_udhari_url=whatsapp_url,
         inward_challans=inward_records,
-        outward_deliveries=outward_records
+        outward_deliveries=outward_records,
+        factory_profile=factory_profile_data
     )
 
 
 @app.get("/api/ledger/{party_id}/export-tally")
-def export_tally_csv(party_id: UUID, session: Session = Depends(get_session)):
-    """Generates Tally Prime-compatible RFC 4180 CSV export."""
+def export_tally_csv(
+    party_id: UUID,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Generates Tally Prime-compatible RFC 4180 CSV export for active tenant."""
     party = session.get(Party, party_id)
-    if not party:
+    if not party or party.factory_id != tenant.factory_id:
         raise HTTPException(status_code=404, detail="વેપારી ખાતું મળ્યું નથી (Party not found)")
 
-    inwards = session.exec(select(Challan).where(Challan.party_id == party.id, Challan.challan_type == ChallanType.INWARD)).all()
+    inwards = session.exec(
+        select(Challan).where(
+            Challan.factory_id == tenant.factory_id,
+            Challan.party_id == party.id,
+            Challan.challan_type == ChallanType.INWARD
+        )
+    ).all()
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -883,7 +1343,12 @@ def export_tally_csv(party_id: UUID, session: Session = Depends(get_session)):
     ])
 
     for inward in inwards:
-        delivs = session.exec(select(LotDelivery).where(LotDelivery.inward_challan_id == inward.id)).all()
+        delivs = session.exec(
+            select(LotDelivery).where(
+                LotDelivery.factory_id == tenant.factory_id,
+                LotDelivery.inward_challan_id == inward.id
+            )
+        ).all()
         rate = inward.agreed_rate if inward.agreed_rate > 0 else 42.0
 
         for d in delivs:
@@ -903,7 +1368,7 @@ def export_tally_csv(party_id: UUID, session: Session = Depends(get_session)):
                 d.kasar_quantity,
                 d.fent_quantity,
                 billable,
-                f"Job-work delivery against Inward Challan {inward.challan_number}"
+                f"Job-work delivery against Inward Challan {inward.challan_number} [{tenant.factory.factory_name}]"
             ])
 
     output.seek(0)
@@ -915,22 +1380,35 @@ def export_tally_csv(party_id: UUID, session: Session = Depends(get_session)):
     )
 
 
-# --- 8. KARIGAR UPAAD & SALARY ENDPOINTS ---
+# --- 9. KARIGAR UPAAD & SALARY ENDPOINTS (TENANT SCOPED) ---
 
 @app.get("/api/karigars/summary", response_model=List[KarigarSalaryRecordRead])
-def get_karigars_summary(session: Session = Depends(get_session)):
-    """Computes Karigar shifts completed, stitch bonuses, total advances (upaad), and net payable salary."""
-    shifts = session.exec(select(MachineShift)).all()
-    advances = session.exec(select(KarigarAdvance).order_by(KarigarAdvance.advance_date.desc())).all()
+def get_karigars_summary(
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Computes Karigar shifts completed, stitch bonuses, total advances (upaad), and net payable salary for active tenant."""
+    shifts = session.exec(
+        select(MachineShift).where(MachineShift.factory_id == tenant.factory_id)
+    ).all()
+    advances = session.exec(
+        select(KarigarAdvance).where(KarigarAdvance.factory_id == tenant.factory_id).order_by(KarigarAdvance.advance_date.desc())
+    ).all()
 
-    karigar_map = {
-        "Ramesh Karigar": {"shifts": 26, "bonus": 2450.0, "phone": "+91 98980 11223"},
-        "Maheshbhai": {"shifts": 24, "bonus": 1800.0, "phone": "+91 98251 44556"},
-        "Udinbhai": {"shifts": 25, "bonus": 2100.0, "phone": "+91 97120 77889"},
-        "Bhaveshbhai": {"shifts": 22, "bonus": 1200.0, "phone": "+91 94265 99001"},
-    }
+    # Pre-populate known operators for Tenant 1 vs Tenant 2
+    if tenant.factory.factory_code == "EMB-1002":
+        karigar_map = {
+            "Kishorbhai": {"shifts": 18, "bonus": 1400.0, "phone": "+91 98980 99887"}
+        }
+    else:
+        karigar_map = {
+            "Ramesh Karigar": {"shifts": 26, "bonus": 2450.0, "phone": "+91 98980 11223"},
+            "Maheshbhai": {"shifts": 24, "bonus": 1800.0, "phone": "+91 98251 44556"},
+            "Udinbhai": {"shifts": 25, "bonus": 2100.0, "phone": "+91 97120 77889"},
+            "Bhaveshbhai": {"shifts": 22, "bonus": 1200.0, "phone": "+91 94265 99001"},
+        }
 
-    # Aggregate dynamically logged shifts
+    # Aggregate dynamically logged shifts for this factory
     for s in shifts:
         if s.operator_name in karigar_map:
             karigar_map[s.operator_name]["shifts"] += 1
@@ -975,9 +1453,14 @@ def get_karigars_summary(session: Session = Depends(get_session)):
 
 
 @app.post("/api/karigars/upaad", response_model=KarigarAdvanceRead)
-def log_karigar_upaad(payload: KarigarAdvanceCreate, session: Session = Depends(get_session)):
-    """Logs a cash advance (upaad) taken by a machine operator."""
+def log_karigar_upaad(
+    payload: KarigarAdvanceCreate,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Logs a cash advance (upaad) taken by a machine operator inside this factory."""
     adv = KarigarAdvance(
+        factory_id=tenant.factory_id,
         karigar_name=payload.karigar_name,
         amount=payload.amount,
         advance_date=payload.advance_date or date.today(),
@@ -995,7 +1478,7 @@ def log_karigar_upaad(payload: KarigarAdvanceCreate, session: Session = Depends(
     )
 
 
-# --- 9. DESIGN MASTER CATALOG & CONSUMABLES ---
+# --- 10. DESIGN MASTER CATALOG & CONSUMABLES ---
 
 STATIC_DESIGNS = [
     {
@@ -1090,10 +1573,10 @@ def toggle_consumable_stock(payload: ConsumableToggleRequest):
     raise HTTPException(status_code=404, detail="Consumable item not found")
 
 
-# --- 10. RE-SEED ENDPOINT ---
+# --- 11. RE-SEED ENDPOINT ---
 
 @app.post("/api/seed")
 def trigger_seed_database():
-    """Reseeds the database with realistic Surat/Ahmedabad test data."""
+    """Reseeds the database with multi-tenant Surat and Ahmedabad test data."""
     seed_database()
-    return {"success": True, "message": "Database reseeded successfully with Gujarat Embroidery v2.0 dataset"}
+    return {"success": True, "message": "Database reseeded successfully with Gujarat Embroidery v3.0 Multi-Tenant dataset"}

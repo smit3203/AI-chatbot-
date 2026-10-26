@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
+  Settings,
+  LogOut,
+  KeyRound,
+  Crown,
+  ArrowRight,
   Camera,
   Send,
   Upload,
@@ -22,7 +27,7 @@ import {
   X,
   Phone,
   Building,
-  User,
+  User as UserIcon,
   ShieldCheck,
   TrendingUp,
   Cpu,
@@ -42,6 +47,17 @@ import {
 } from "@/lib/translations";
 
 import {
+  User,
+  Factory,
+  DemoTenant,
+  getCurrentUser,
+  getCurrentFactory,
+  clearAuthSession,
+  login,
+  registerFactory,
+  fetchMe,
+  updateFactoryProfile,
+  fetchDemoTenants,
   HealthStatus,
   DashboardSummary,
   Party,
@@ -84,6 +100,158 @@ export default function Home() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
+
+  // --- MULTI-TENANT SAAS AUTH & PROFILE STATE ---
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentFactory, setCurrentFactory] = useState<Factory | null>(null);
+  const [demoTenantsList, setDemoTenantsList] = useState<DemoTenant[]>([]);
+  const [authTab, setAuthTab] = useState<"login" | "register">("login");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  // Login form state
+  const [loginForm, setLoginForm] = useState({
+    login_id: "9825012345",
+    password: "123456",
+  });
+
+  // Register form state
+  const [registerForm, setRegisterForm] = useState({
+    factory_name: "શ્રી રાધે એમ્બ્રોઇડરી",
+    owner_name: "સંજયભાઈ પટેલ",
+    phone: "9879012345",
+    password: "123456",
+    city: "Surat",
+    address: "પ્લોટ નં. ૧૨, એ.કે. રોડ, સુરત",
+    gstin: "24AAAPL9999Z1Z1",
+    bank_name: "State Bank of India (વરાછા શાખા)",
+    bank_account_no: "30129845612",
+    bank_ifsc: "SBIN0001234",
+    upi_id: "sanjay.embroidery@oksbi",
+  });
+
+  // Profile modal form state
+  const [profileForm, setProfileForm] = useState<Partial<Factory>>({});
+
+  // Initialize auth from localStorage & load demo tenants
+  useEffect(() => {
+    initAuthAndTenants();
+  }, []);
+
+  const initAuthAndTenants = async () => {
+    try {
+      const demos = await fetchDemoTenants();
+      setDemoTenantsList(demos);
+    } catch (e) {
+      console.warn("Error fetching demo tenants:", e);
+    }
+
+    const savedUser = getCurrentUser();
+    const savedFactory = getCurrentFactory();
+    if (savedUser && savedFactory) {
+      setCurrentUser(savedUser);
+      setCurrentFactory(savedFactory);
+      setProfileForm(savedFactory);
+      fetchMe()
+        .then((me) => {
+          setCurrentUser(me.user);
+          setCurrentFactory(me.factory);
+          setProfileForm(me.factory);
+        })
+        .catch((e) => console.warn("fetchMe error:", e));
+    }
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthLoading(true);
+    try {
+      const res = await login(loginForm);
+      setCurrentUser(res.user);
+      setCurrentFactory(res.factory);
+      setProfileForm(res.factory);
+      showToast(`${t.loginSuccessAlert || "લોગિન સફળ"}: ${res.factory.factory_name}`, "success");
+      await refreshAllData();
+    } catch (err: any) {
+      showToast(err.message || "Login failed", "error");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleQuickDemoLogin = async (loginId: string, password = "123456") => {
+    setIsAuthLoading(true);
+    try {
+      const res = await login({ login_id: loginId, password });
+      setCurrentUser(res.user);
+      setCurrentFactory(res.factory);
+      setProfileForm(res.factory);
+      showToast(`${t.loginSuccessAlert || "લોગિન સફળ"}: ${res.factory.factory_name} (${res.factory.factory_code})`, "success");
+      await refreshAllData();
+    } catch (err: any) {
+      showToast(err.message || "Quick switch failed", "error");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthLoading(true);
+    try {
+      const res = await registerFactory(registerForm);
+      setCurrentUser(res.user);
+      setCurrentFactory(res.factory);
+      setProfileForm(res.factory);
+      showToast(`${t.registerSuccessAlert || "કારખાનું રજીસ્ટર થયું"}: ${res.factory.factory_code} - ${res.factory.factory_name}`, "success");
+      await refreshAllData();
+    } catch (err: any) {
+      showToast(err.message || "Registration failed", "error");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    clearAuthSession();
+    setCurrentUser(null);
+    setCurrentFactory(null);
+    showToast(t.logoutSuccessAlert || "ખાતામાંથી બહાર નીકળ્યા (Logged out)", "info");
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    try {
+      const updated = await updateFactoryProfile(profileForm);
+      setCurrentFactory(updated);
+      setProfileForm(updated);
+      setProfileModalOpen(false);
+      showToast(t.profileUpdateSuccess || "પ્રોફાઇલ સેવ થઈ ગઈ!", "success");
+      if (selectedPartyId) await loadPartyLedgerData(selectedPartyId);
+    } catch (err: any) {
+      showToast(err.message || "Update profile failed", "error");
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const refreshAllData = async () => {
+    setSelectedPartyId("");
+    setPartyLedger(null);
+    try {
+      await Promise.allSettled([
+        loadInitialData(),
+        loadPendingLotsData(),
+        loadShiftsData(),
+        loadPartiesData(),
+        loadAddonData(),
+      ]);
+    } catch (e) {
+      console.warn("Error refreshing all data:", e);
+    }
+  };
 
   // Active language dictionary
   const t = translations[lang];
@@ -618,9 +786,12 @@ export default function Home() {
     try {
       const pList = await fetchParties();
       setParties(pList);
-      if (pList.length > 0 && !selectedPartyId) {
+      if (pList.length > 0) {
         setSelectedPartyId(pList[0].id);
         loadPartyLedgerData(pList[0].id);
+      } else {
+        setSelectedPartyId("");
+        setPartyLedger(null);
       }
     } catch (e) {
       console.warn("Parties fetch error:", e);
@@ -649,7 +820,401 @@ export default function Home() {
 
   // -------------------------------------------------------------
   // RENDER UI
-  // -------------------------------------------------------------
+  // -------------------------------------------------------------  // If not authenticated, render the executive Multi-Tenant SaaS Portal
+  if (!currentFactory) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-amber-950 flex flex-col justify-between p-4 sm:p-6 text-slate-100 font-sans">
+        {/* --- TOAST NOTIFICATION --- */}
+        {notification && (
+          <div
+            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 text-white ${
+              notification.type === "error"
+                ? "bg-rose-600"
+                : notification.type === "info"
+                ? "bg-indigo-600"
+                : "bg-emerald-600"
+            }`}
+          >
+            {notification.type === "error" ? (
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+            )}
+            <span className="text-sm font-medium">{notification.msg}</span>
+            <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-80">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* SaaS Header */}
+        <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-6 border-b border-slate-700/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/25">
+              શ્રી
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  ChallanAI <span className="text-amber-400 font-mono text-xs">v3.0</span>
+                </h1>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  B2B SaaS
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                EmbroideryOS • સુરત • અમદાવાદ • જેતપુર
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setLang(lang === "gu" ? "en" : "gu")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-600 hover:border-amber-400 bg-slate-800/80 text-xs font-bold text-slate-200 transition-all shadow-sm"
+          >
+            <span className="text-amber-400">🌐</span>
+            <span>{t.langToggle}</span>
+          </button>
+        </header>
+
+        {/* SaaS Gateway Main Card */}
+        <main className="max-w-2xl w-full mx-auto my-6 bg-slate-800/90 backdrop-blur-xl border border-slate-700 rounded-3xl p-5 sm:p-8 shadow-2xl">
+          {/* Tab Switcher: Login vs Register */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-700/80 mb-6">
+            <button
+              type="button"
+              onClick={() => setAuthTab("login")}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                authTab === "login"
+                  ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>{t.loginTabLogin}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthTab("register")}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                authTab === "register"
+                  ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>{t.loginTabRegister}</span>
+            </button>
+          </div>
+
+          {/* TAB A: LOGIN */}
+          {authTab === "login" && (
+            <div className="space-y-6">
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    {t.loginIdLabel}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={loginForm.login_id}
+                    onChange={(e) => setLoginForm({ ...loginForm, login_id: e.target.value })}
+                    placeholder={t.loginIdPlaceholder}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    {t.passwordLabel}
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    placeholder={t.passwordPlaceholder}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isAuthLoading}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isAuthLoading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <KeyRound className="w-4 h-4 text-slate-950" />
+                  )}
+                  <span>{t.btnLogin}</span>
+                </button>
+              </form>
+
+              {/* Instant 1-Click Multi-Tenant Demo Switcher */}
+              <div className="pt-4 border-t border-slate-700/80">
+                <div className="flex items-center gap-2 mb-3 text-amber-400 font-bold text-xs">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t.demoAccountsTitle}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Demo Tenant 1 */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoLogin("9825012345", "123456")}
+                    disabled={isAuthLoading}
+                    className="p-3.5 bg-slate-900/90 hover:bg-slate-900 border border-amber-500/30 hover:border-amber-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          EMB-1001
+                        </span>
+                        <span className="text-[10px] text-amber-400 font-bold">Surat</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors">
+                        શ્રી કૃષ્ણા એમ્બ્રોઇડરી
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        માલિક: Prince • ૪ વેપારી • ૪ લોટ
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
+                      <span className="font-mono">9825012345</span>
+                      <span className="text-amber-400 font-bold group-hover:translate-x-0.5 transition-transform">
+                        પ્રવેશ કરો →
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Demo Tenant 2 */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoLogin("9898011111", "123456")}
+                    disabled={isAuthLoading}
+                    className="p-3.5 bg-slate-900/90 hover:bg-slate-900 border border-purple-500/30 hover:border-purple-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          EMB-1002
+                        </span>
+                        <span className="text-[10px] text-purple-300 font-bold">Ahmedabad</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">
+                        પટેલ ટ્વિસ્ટ એન્ડ એમ્બ્રોઇડરી
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        માલિક: Rameshbhai • Kotak Bank
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
+                      <span className="font-mono">9898011111</span>
+                      <span className="text-purple-400 font-bold group-hover:translate-x-0.5 transition-transform">
+                        પ્રવેશ કરો →
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB B: REGISTER */}
+          {authTab === "register" && (
+            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.factoryNameLabel} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={registerForm.factory_name}
+                    onChange={(e) => setRegisterForm({ ...registerForm, factory_name: e.target.value })}
+                    placeholder="દા.ત. શ્રી રાધે એમ્બ્રોઇડરી"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.ownerNameLabel} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={registerForm.owner_name}
+                    onChange={(e) => setRegisterForm({ ...registerForm, owner_name: e.target.value })}
+                    placeholder="દા.ત. સંજયભાઈ પટેલ"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.phoneLabel} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={registerForm.phone}
+                    onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
+                    placeholder="દા.ત. 9879012345"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.passwordLabel} *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                    placeholder="પાસવર્ડ દાખલ કરો"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.cityLabel}
+                  </label>
+                  <select
+                    value={registerForm.city}
+                    onChange={(e) => setRegisterForm({ ...registerForm, city: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="Surat">Surat (સુરત)</option>
+                    <option value="Ahmedabad">Ahmedabad (અમદાવાદ)</option>
+                    <option value="Jetpur">Jetpur (જેતપુર)</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.gstinLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={registerForm.gstin}
+                    onChange={(e) => setRegisterForm({ ...registerForm, gstin: e.target.value })}
+                    placeholder="24AAAPL9999Z1Z1"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  {t.addressLabel}
+                </label>
+                <input
+                  type="text"
+                  value={registerForm.address}
+                  onChange={(e) => setRegisterForm({ ...registerForm, address: e.target.value })}
+                  placeholder="પ્લોટ નં. ૧૨, એ.કે. રોડ, સુરત"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.bankNameLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={registerForm.bank_name}
+                    onChange={(e) => setRegisterForm({ ...registerForm, bank_name: e.target.value })}
+                    placeholder="State Bank of India"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.bankAccountNoLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={registerForm.bank_account_no}
+                    onChange={(e) => setRegisterForm({ ...registerForm, bank_account_no: e.target.value })}
+                    placeholder="30129845612"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {t.bankIfscLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={registerForm.bank_ifsc}
+                    onChange={(e) => setRegisterForm({ ...registerForm, bank_ifsc: e.target.value })}
+                    placeholder="SBIN0001234"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  {t.upiIdLabel}
+                </label>
+                <input
+                  type="text"
+                  value={registerForm.upi_id}
+                  onChange={(e) => setRegisterForm({ ...registerForm, upi_id: e.target.value })}
+                  placeholder="radhe.embroidery@oksbi"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  {lang === "gu"
+                    ? "૧૫ દિવસ મફત ટ્રાયલ સાથે તાત્કાલિક EMB-XXXX ફેક્ટરી કોડ જનરેટ થશે."
+                    : "Immediate EMB-XXXX factory code generated with 15-day full SaaS trial."}
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isAuthLoading}
+                className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isAuthLoading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                ) : (
+                  <Building className="w-4 h-4 text-slate-950" />
+                )}
+                <span>{t.btnRegister}</span>
+              </button>
+            </form>
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="max-w-4xl w-full mx-auto text-center text-xs text-slate-500 pt-4 border-t border-slate-800">
+          ChallanAI (EmbroideryOS) v3.0 Multi-Tenant B2B SaaS • High Performance Next.js 14 & FastAPI
+        </footer>
+      </div>
+    );
+  }
+
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* --- TOAST NOTIFICATION --- */}
@@ -678,54 +1243,97 @@ export default function Home() {
       {/* --- GLOBAL STICKY TOP HEADER --- */}
       <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
-          {/* Brand */}
+          {/* Brand & Tenant Identification */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-white shadow-md shadow-amber-500/20 font-bold text-lg">
-              શ્રી
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-white shadow-md shadow-amber-500/20 font-bold text-lg shrink-0">
+              {currentFactory?.factory_name?.slice(0, 3) || "શ્રી"}
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                {t.appTitle}
-              </h1>
-              <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                {t.appSubtitle}
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                  {currentFactory?.factory_name || t.appTitle}
+                </h1>
+                {currentFactory && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black font-mono bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    ID: {currentFactory.factory_code}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium flex items-center gap-2">
+                <span>{currentFactory?.city || "Surat"}</span>
+                {currentUser && (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-700 font-semibold">{currentUser.full_name} ({currentUser.role})</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
 
-          {/* Right Status & Lang Toggle */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Health Badge */}
-            <div
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-                health?.database_engine.includes("NEON")
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>{health?.database_engine.includes("NEON") ? t.databaseNeon : t.databaseSqlite}</span>
+          {/* Right Status & Tenant Actions */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Subscription Status Pill */}
+            {currentFactory && (
+              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="font-bold">{currentFactory.subscription_plan}</span>
+                <span className="text-emerald-600 font-normal">
+                  ({currentFactory.days_remaining ?? 15} {t.daysLeft})
+                </span>
+              </div>
+            )}
+
+            {/* Instant 1-Click Multi-Tenant Switcher */}
+            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-500 px-1">Switch:</span>
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin("9825012345", "123456")}
+                className={`px-2 py-0.5 text-[11px] font-bold rounded transition-all ${
+                  currentFactory?.factory_code === "EMB-1001"
+                    ? "bg-amber-500 text-white shadow-xs"
+                    : "text-slate-700 hover:bg-white"
+                }`}
+                title="Shree Krishna Embroidery (Surat)"
+              >
+                EMB-1001
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDemoLogin("9898011111", "123456")}
+                className={`px-2 py-0.5 text-[11px] font-bold rounded transition-all ${
+                  currentFactory?.factory_code === "EMB-1002"
+                    ? "bg-amber-500 text-white shadow-xs"
+                    : "text-slate-700 hover:bg-white"
+                }`}
+                title="Patel Twist & Embroidery (Ahmedabad)"
+              >
+                EMB-1002
+              </button>
             </div>
 
-            {/* 1-Click Demo Reset Button */}
+            {/* Factory Profile & Plan Modal Button */}
             <button
-              onClick={handleResetDemo}
-              disabled={isResettingDemo}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shadow-sm disabled:opacity-50"
-              title={t.btnResetDemo}
+              onClick={() => {
+                setProfileForm(currentFactory || {});
+                setProfileModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all shadow-sm"
+              title={t.btnFactoryProfile}
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-rose-600 ${isResettingDemo ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{t.btnResetDemo}</span>
+              <Settings className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden sm:inline">{t.btnFactoryProfile}</span>
             </button>
 
-            {/* Design Master Catalog Button */}
+            {/* Logout / Switch Owner Button */}
             <button
-              onClick={() => setDesignGalleryOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-all shadow-sm"
-              title={t.btnDesignCatalog}
+              onClick={handleLogout}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shadow-sm"
+              title={t.btnLogout}
             >
-              <Palette className="w-3.5 h-3.5 text-purple-600" />
-              <span className="hidden sm:inline">{t.btnDesignCatalog}</span>
+              <LogOut className="w-3.5 h-3.5 text-rose-600" />
+              <span className="hidden sm:inline">{t.btnLogout}</span>
             </button>
 
             {/* Language Switch */}
@@ -1200,6 +1808,43 @@ export default function Home() {
             </div>
 
             {/* Pending Lots Cards Grid */}
+            {filteredLots.length === 0 && (
+              <div className="bg-white rounded-3xl border-2 border-dashed border-amber-300 p-8 sm:p-12 text-center space-y-4 shadow-sm max-w-2xl mx-auto my-6">
+                <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
+                  🎉
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                    {t.welcomeNewTenant}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {lang === "gu"
+                      ? "તમારા કારખાનામાં હજુ સુધી કોઈ લોટ નોંધાયેલ નથી. તાત્કાલિક પ્રથમ આવક ચલણ દાખલ કરવા નીચે ક્લિક કરો:"
+                      : "No active lots found in your factory workspace yet. Click below to add your first inward challan or test via WhatsApp Bot:"}
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <button
+                    onClick={() => {
+                      setActiveTab("bot");
+                      triggerPreset("preset_radhe_inward.jpg");
+                    }}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{t.btnAddPartyLot}</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("bot")}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>{t.tabBot}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredLots.map((lot) => (
                 <div
@@ -1350,7 +1995,7 @@ export default function Home() {
                 {[
                   { id: "calculator", label: t.subTabCalc, icon: Calculator },
                   { id: "shifts", label: t.subTabShifts, icon: Clock },
-                  { id: "karigar", label: t.subTabKarigar, icon: User },
+                  { id: "karigar", label: t.subTabKarigar, icon: UserIcon },
                 ].map((st) => {
                   const Icon = st.icon;
                   const isActive = tab3SubTab === st.id;
@@ -1618,7 +2263,7 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                     <div>
                       <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <User className="w-5 h-5 text-amber-600" />
+                        <UserIcon className="w-5 h-5 text-amber-600" />
                         <span>{t.karigarTitle}</span>
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
@@ -1876,13 +2521,13 @@ export default function Home() {
               <div className="print-header flex items-start justify-between border-b-2 border-slate-900 pb-4">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                    {t.appTitle}
+                    {partyLedger?.factory_profile?.factory_name || currentFactory?.factory_name || t.appTitle}
                   </h2>
                   <p className="text-xs text-slate-600 font-medium">
-                    પ્લોટ નં. ૪૫, એમ્બ્રોઇડરી પાર્ક, વરાછા રોડ, સુરત - ૩૯૫૦૦૬ • મો: +91 98250 12345
+                    {partyLedger?.factory_profile?.address || currentFactory?.address || "પ્લોટ નં. ૪૫, એમ્બ્રોઇડરી પાર્ક, વરાછા રોડ, સુરત"} {currentFactory?.phone ? `• મો: +91 ${currentFactory.phone}` : ""}
                   </p>
                   <p className="text-xs text-slate-500 font-semibold mt-1">
-                    GSTIN: 24AAACS1234E1Z5 • જોબ-વર્ક હિસાબ સ્ટેટમેન્ટ
+                    GSTIN: {partyLedger?.factory_profile?.gstin || currentFactory?.gstin || "24AAACS1234E1Z5"} • જોબ-વર્ક હિસાબ સ્ટેટમેન્ટ
                   </p>
                 </div>
 
@@ -2077,11 +2722,11 @@ export default function Home() {
                     <Building className="w-4 h-4 text-amber-600" />
                     <span>{t.bankDetailsTitle}</span>
                   </h5>
-                  <p><strong className="text-slate-900">બેંકનું નામ:</strong> HDFC Bank (વરાછા રોડ શાખા, સુરત)</p>
-                  <p><strong className="text-slate-900">ખાતાધારક:</strong> Shree Krishna Embroidery</p>
-                  <p><strong className="text-slate-900">કરન્ટ ખાતા નં:</strong> <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-slate-300">50200089234120</span></p>
-                  <p><strong className="text-slate-900">IFSC કોડ:</strong> <span className="font-mono font-bold">HDFC0001234</span></p>
-                  <p><strong className="text-slate-900">શાખા:</strong> પ્લોટ નં. ૪૫, એમ્બ્રોઇડરી પાર્ક, વરાછા, સુરત - ૩૯૫૦૦૬</p>
+                  <p><strong className="text-slate-900">બેંકનું નામ:</strong> {partyLedger?.factory_profile?.bank_name || currentFactory?.bank_name || "HDFC Bank (વરાછા રોડ શાખા, સુરત)"}</p>
+                  <p><strong className="text-slate-900">ખાતાધારક:</strong> {partyLedger?.factory_profile?.factory_name || currentFactory?.factory_name || "Shree Krishna Embroidery"}</p>
+                  <p><strong className="text-slate-900">કરન્ટ ખાતા નં:</strong> <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-slate-300">{partyLedger?.factory_profile?.bank_account_no || currentFactory?.bank_account_no || "50200089234120"}</span></p>
+                  <p><strong className="text-slate-900">IFSC કોડ:</strong> <span className="font-mono font-bold">{partyLedger?.factory_profile?.bank_ifsc || currentFactory?.bank_ifsc || "HDFC0001234"}</span></p>
+                  <p><strong className="text-slate-900">શાખા/સરનામું:</strong> {partyLedger?.factory_profile?.address || currentFactory?.address || "પ્લોટ નં. ૪૫, એમ્બ્રોઇડરી પાર્ક, વરાછા, સુરત - ૩૯૫૦૦૬"}</p>
                 </div>
 
                 {/* Scan-to-Pay UPI QR Code */}
@@ -2134,7 +2779,7 @@ export default function Home() {
                       <span>{t.upiPaymentTitle}</span>
                     </div>
                     <p className="text-[11px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      shreekrishna.embroidery@okaxis
+                      {partyLedger?.factory_profile?.upi_id || currentFactory?.upi_id || "shreekrishna.embroidery@okaxis"}
                     </p>
                     <p className="text-[11px] font-bold text-emerald-700 font-mono">
                       કુલ ચૂકવવાપાત્ર: ₹{(isGstBill ? (partyLedger?.summary.total_billable_amount_inr || 0) * 1.05 : (partyLedger?.summary.total_billable_amount_inr || 0)).toLocaleString()}
@@ -2954,6 +3599,216 @@ export default function Home() {
                   className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
                 >
                   {t.btnCancel}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* FACTORY PROFILE & SUBSCRIPTION MODAL                      */}
+      {/* ========================================================= */}
+      {profileModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500 to-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Settings className="w-5 h-5" />
+                <h3 className="font-bold text-base sm:text-lg">
+                  {t.profileModalTitle}
+                </h3>
+              </div>
+              <button
+                onClick={() => setProfileModalOpen(false)}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Tenant Badge & Plan Overview */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-amber-800 font-semibold">{t.subscriptionStatusTitle}</p>
+                  <p className="text-sm font-extrabold text-slate-900">
+                    {profileForm.subscription_plan || "TRIAL_15_DAYS"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="px-2.5 py-1 rounded-full text-xs font-mono font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    {profileForm.factory_code || currentFactory?.factory_code}
+                  </span>
+                  <p className="text-[10px] text-slate-500 font-medium mt-1">
+                    {currentFactory?.days_remaining ?? 15} {t.daysLeft}
+                  </p>
+                </div>
+              </div>
+
+              {/* Form fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">{t.factoryNameLabel}</label>
+                  <input
+                    type="text"
+                    value={profileForm.factory_name || ""}
+                    onChange={(e) => setProfileForm({ ...profileForm, factory_name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">{t.ownerNameLabel}</label>
+                  <input
+                    type="text"
+                    value={profileForm.owner_name || ""}
+                    onChange={(e) => setProfileForm({ ...profileForm, owner_name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">{t.cityLabel}</label>
+                  <select
+                    value={profileForm.city || "Surat"}
+                    onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="Surat">Surat</option>
+                    <option value="Ahmedabad">Ahmedabad</option>
+                    <option value="Jetpur">Jetpur</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">{t.gstinLabel}</label>
+                  <input
+                    type="text"
+                    value={profileForm.gstin || ""}
+                    onChange={(e) => setProfileForm({ ...profileForm, gstin: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-amber-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">{t.addressLabel}</label>
+                <input
+                  type="text"
+                  value={profileForm.address || ""}
+                  onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
+                />
+              </div>
+
+              {/* Bank Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">{t.bankNameLabel}</label>
+                  <input
+                    type="text"
+                    value={profileForm.bank_name || ""}
+                    onChange={(e) => setProfileForm({ ...profileForm, bank_name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">{t.bankAccountNoLabel}</label>
+                  <input
+                    type="text"
+                    value={profileForm.bank_account_no || ""}
+                    onChange={(e) => setProfileForm({ ...profileForm, bank_account_no: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">{t.bankIfscLabel}</label>
+                  <input
+                    type="text"
+                    value={profileForm.bank_ifsc || ""}
+                    onChange={(e) => setProfileForm({ ...profileForm, bank_ifsc: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* UPI ID */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">{t.upiIdLabel}</label>
+                <input
+                  type="text"
+                  value={profileForm.upi_id || ""}
+                  onChange={(e) => setProfileForm({ ...profileForm, upi_id: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Subscription Plan Switcher */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  SaaS પ્લાન પસંદ કરો (Subscription Upgrade):
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProfileForm({ ...profileForm, subscription_plan: "TRIAL_15_DAYS" })}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      profileForm.subscription_plan === "TRIAL_15_DAYS"
+                        ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <p className="font-bold text-xs">{t.subscriptionPlanTrial}</p>
+                    <p className="text-[10px] text-slate-500">₹0 / ૧૫ દિવસ</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileForm({ ...profileForm, subscription_plan: "PRO_MONTHLY_1500" })}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      profileForm.subscription_plan === "PRO_MONTHLY_1500"
+                        ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <p className="font-bold text-xs">{t.subscriptionPlanProMonthly}</p>
+                    <p className="text-[10px] text-slate-500">₹૧,૫૦૦ / મહિને</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileForm({ ...profileForm, subscription_plan: "PRO_YEARLY_15000" })}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      profileForm.subscription_plan === "PRO_YEARLY_15000"
+                        ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <p className="font-bold text-xs">{t.subscriptionPlanProYearly}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold">૨ મહિના મફત</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProfileModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition-colors"
+                >
+                  {t.btnCancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingProfile}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isUpdatingProfile ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>{t.btnSaveProfile}</span>
                 </button>
               </div>
             </form>

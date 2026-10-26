@@ -1,10 +1,10 @@
-# ChallanAI (EmbroideryOS) - System Architecture & End-to-End Flow Blueprint (v2.0)
+# ChallanAI (EmbroideryOS) - System Architecture & End-to-End Flow Blueprint (v3.0 Multi-Tenant B2B SaaS)
 
 > **File:** `ARCHITECTURE_AND_FLOW.md`  
-> **System:** ChallanAI (EmbroideryOS) - Job-Work & Lot Reconciliation Operating System  
+> **System:** ChallanAI (EmbroideryOS) - Multi-Tenant Job-Work & Lot Reconciliation Operating System  
 > **Target Clusters:** Gujarat Textile Hubs (Surat, Ahmedabad, Jetpur)  
 > **Languages Supported:** Gujarati (`ગુજરાતી`) & English (`EN`)  
-> **Specification Version:** `2.0 (Production Blueprint with Real-World Gujarat Job-Work Extensions)`  
+> **Specification Version:** `3.0 (Multi-Tenant B2B SaaS with Factory Isolation, JWT Auth, and Dynamic Branding)`  
 > **Status:** Single Source of Truth (SSOT) Architecture Blueprint
 
 ---

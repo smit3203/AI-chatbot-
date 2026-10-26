@@ -1,5 +1,141 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// --- MULTI-TENANT SAAS AUTH & STORAGE HELPERS ---
+
+export interface User {
+  id: string;
+  user_code: string;
+  factory_id: string;
+  login_id: string;
+  full_name: string;
+  role: string;
+  created_at?: string;
+}
+
+export interface Factory {
+  id: string;
+  factory_code: string;
+  factory_name: string;
+  owner_name: string;
+  phone: string;
+  city: string;
+  address: string;
+  gstin: string;
+  bank_name: string;
+  bank_account_no: string;
+  bank_ifsc: string;
+  upi_id: string;
+  default_machine_heads: number;
+  subscription_plan: string;
+  subscription_status: string;
+  trial_ends_at?: string;
+  days_remaining?: number;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+  factory: Factory;
+  message: string;
+}
+
+export interface DemoTenant {
+  factory_id?: string;
+  factory_code: string;
+  factory_name: string;
+  owner_name: string;
+  city: string;
+  login_id: string;
+  role?: string;
+  demo_password?: string;
+  description: string;
+  subscription_plan?: string;
+}
+
+export interface RegisterPayload {
+  factory_name: string;
+  owner_name: string;
+  phone: string;
+  password: string;
+  city?: string;
+  address?: string;
+  gstin?: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_ifsc?: string;
+  upi_id?: string;
+  default_machine_heads?: number;
+  seed_starter_lot?: boolean;
+}
+
+const TOKEN_KEY = "challanai_auth_token";
+const USER_KEY = "challanai_current_user";
+const FACTORY_KEY = "challanai_current_factory";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getCurrentUser(): User | null {
+  if (typeof window === "undefined") return null;
+  const data = localStorage.getItem(USER_KEY);
+  try {
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function getCurrentFactory(): Factory | null {
+  if (typeof window === "undefined") return null;
+  const data = localStorage.getItem(FACTORY_KEY);
+  try {
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function setAuthSession(auth: AuthResponse): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, auth.token);
+  localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
+  localStorage.setItem(FACTORY_KEY, JSON.stringify(auth.factory));
+}
+
+export function clearAuthSession(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(FACTORY_KEY);
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const factory = getCurrentFactory();
+  if (factory?.id) {
+    headers["X-Factory-Id"] = factory.id;
+  }
+  return headers;
+}
+
+export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const authHeaders = getAuthHeaders();
+  const headers = {
+    ...authHeaders,
+    ...(options.headers || {}),
+  };
+  return fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+}
+
 // --- TYPES (MATCHING BACKEND MODELS EXACTLY) ---
 
 export interface HealthStatus {
@@ -200,6 +336,20 @@ export interface PartyLedger {
     billable_amount_inr: number;
     photo_url?: string;
   }>;
+  factory_profile?: {
+    factory_code: string;
+    factory_name: string;
+    owner_name: string;
+    phone: string;
+    city: string;
+    address: string;
+    gstin: string;
+    bank_name: string;
+    bank_account_no: string;
+    bank_ifsc: string;
+    upi_id: string;
+    subscription_plan?: string;
+  };
 }
 
 export interface ExtractedChallanData {
@@ -437,18 +587,104 @@ const MOCK_SHIFTS: ShiftLog[] = [
   },
 ];
 
+// --- AUTH & TENANT API CALLS ---
+
+export async function login(payload: { login_id: string; password: string }): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "લોગિન નિષ્ફળ ગયું (Login failed)");
+  }
+  const data: AuthResponse = await res.json();
+  setAuthSession(data);
+  return data;
+}
+
+export async function registerFactory(payload: RegisterPayload): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "રજીસ્ટ્રેશન નિષ્ફળ ગયું (Registration failed)");
+  }
+  const data: AuthResponse = await res.json();
+  setAuthSession(data);
+  return data;
+}
+
+export async function fetchMe(): Promise<{ user: User; factory: Factory; days_remaining: number }> {
+  const res = await apiFetch("/api/auth/me");
+  if (!res.ok) throw new Error("Failed to fetch session profile");
+  return await res.json();
+}
+
+export async function updateFactoryProfile(payload: Partial<Factory>): Promise<Factory> {
+  const res = await apiFetch("/api/auth/factory-profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "પ્રોફાઇલ અપડેટ કરવામાં ભૂલ આવી (Update failed)");
+  }
+  const updated: Factory = await res.json();
+  if (typeof window !== "undefined") {
+    localStorage.setItem(FACTORY_KEY, JSON.stringify(updated));
+  }
+  return updated;
+}
+
+export async function fetchDemoTenants(): Promise<DemoTenant[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/auth/demo-tenants`);
+    if (!res.ok) throw new Error("Failed to fetch demo tenants");
+    return await res.json();
+  } catch (err) {
+    return [
+      {
+        factory_code: "EMB-1001",
+        factory_name: "Shree Krishna Embroidery",
+        owner_name: "Prince",
+        city: "Surat",
+        login_id: "9825012345",
+        demo_password: "123456",
+        description: "સુરત ક્લસ્ટર - ૪ પાર્ટીઓ, ૧૨૦૦ નંગ લોટ, ૪ મશીન શિફ્ટ",
+        subscription_plan: "PRO_MONTHLY_1500"
+      },
+      {
+        factory_code: "EMB-1002",
+        factory_name: "Patel Twist & Embroidery Works",
+        owner_name: "Rameshbhai Patel",
+        city: "Ahmedabad",
+        login_id: "9898011111",
+        demo_password: "123456",
+        description: "અમદાવાદ ક્લસ્ટર - ૨ અલગ પાર્ટીઓ (બંસી, કર્ણાવતી), સ્વતંત્ર ડેટા",
+        subscription_plan: "PRO_YEARLY_15000"
+      }
+    ];
+  }
+}
+
 // --- API HELPER FUNCTIONS ---
 
 export async function fetchHealth(): Promise<HealthStatus> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/health`);
+    const res = await apiFetch("/api/health");
     if (!res.ok) throw new Error("Health check failed");
     return await res.json();
   } catch (err) {
     return {
       status: "ONLINE",
       system: "ChallanAI (EmbroideryOS)",
-      version: "2.0.0",
+      version: "3.0.0",
       database_engine: "LOCAL_FALLBACK",
       ai_service_mode: "DETERMINISTIC_DEMO_PRESETS",
       supported_languages: ["ગુજરાતી", "English"],
@@ -458,7 +694,7 @@ export async function fetchHealth(): Promise<HealthStatus> {
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/dashboard/summary`);
+    const res = await apiFetch("/api/dashboard/summary");
     if (!res.ok) throw new Error("Dashboard fetch failed");
     return await res.json();
   } catch (err) {
@@ -468,7 +704,7 @@ export async function fetchDashboardSummary(): Promise<DashboardSummary> {
 
 export async function fetchPendingLots(): Promise<PendingLot[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/lots/pending`);
+    const res = await apiFetch("/api/lots/pending");
     if (!res.ok) throw new Error("Pending lots fetch failed");
     return await res.json();
   } catch (err) {
@@ -480,7 +716,7 @@ export async function dispatchLot(
   inwardId: string,
   payload: LotDispatchPayload
 ): Promise<LotDispatchResult> {
-  const res = await fetch(`${API_BASE_URL}/api/lots/${inwardId}/dispatch`, {
+  const res = await apiFetch(`/api/lots/${inwardId}/dispatch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -495,7 +731,7 @@ export async function dispatchLot(
 }
 
 export async function createChallan(payload: Record<string, any>): Promise<Challan> {
-  const res = await fetch(`${API_BASE_URL}/api/challans`, {
+  const res = await apiFetch("/api/challans", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -514,7 +750,7 @@ export async function uploadChallanImage(formData: FormData): Promise<ExtractedC
   const fileName = file ? file.name.toLowerCase() : "";
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/ai/parse-challan-image`, {
+    const res = await apiFetch("/api/ai/parse-challan-image", {
       method: "POST",
       body: formData,
     });
@@ -592,7 +828,7 @@ export async function uploadChallanImage(formData: FormData): Promise<ExtractedC
 
 export async function processVernacularMessage(message: string): Promise<AIMessageResponse> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/ai/process-message`, {
+    const res = await apiFetch("/api/ai/process-message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message }),
@@ -612,7 +848,7 @@ export async function processVernacularMessage(message: string): Promise<AIMessa
 
 export async function calculateStitchQuote(payload: QuoteRequest): Promise<QuoteResult> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/calculator/quote`, {
+    const res = await apiFetch("/api/calculator/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -644,8 +880,8 @@ export async function calculateStitchQuote(payload: QuoteRequest): Promise<Quote
 
 export async function fetchShiftsSummary(dateStr?: string): Promise<ShiftSummary> {
   try {
-    const url = dateStr ? `${API_BASE_URL}/api/shifts/summary?date=${dateStr}` : `${API_BASE_URL}/api/shifts/summary`;
-    const res = await fetch(url);
+    const url = dateStr ? `/api/shifts/summary?date=${dateStr}` : `/api/shifts/summary`;
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error("Shifts summary failed");
     return await res.json();
   } catch (err) {
@@ -662,7 +898,7 @@ export async function fetchShiftsSummary(dateStr?: string): Promise<ShiftSummary
 }
 
 export async function logShift(payload: Record<string, any>): Promise<ShiftLog> {
-  const res = await fetch(`${API_BASE_URL}/api/shifts/log`, {
+  const res = await apiFetch("/api/shifts/log", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -678,7 +914,7 @@ export async function logShift(payload: Record<string, any>): Promise<ShiftLog> 
 
 export async function fetchParties(): Promise<Party[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/parties`);
+    const res = await apiFetch("/api/parties");
     if (!res.ok) throw new Error("Parties fetch failed");
     return await res.json();
   } catch (err) {
@@ -688,7 +924,7 @@ export async function fetchParties(): Promise<Party[]> {
 
 export async function fetchPartyLedger(partyId: string): Promise<PartyLedger> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/ledger/${partyId}`);
+    const res = await apiFetch(`/api/ledger/${partyId}`);
     if (!res.ok) throw new Error("Party ledger failed");
     return await res.json();
   } catch (err) {
@@ -830,7 +1066,7 @@ const MOCK_DESIGNS: DesignMasterItem[] = [
 
 export async function fetchKarigarSalarySummary(): Promise<KarigarSalaryRecord[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/karigars/summary`);
+    const res = await apiFetch("/api/karigars/summary");
     if (res.ok) {
       return await res.json();
     }
@@ -887,7 +1123,7 @@ export async function logKarigarAdvance(payload: {
   notes?: string;
 }): Promise<KarigarAdvance> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/karigars/upaad`, {
+    const res = await apiFetch("/api/karigars/upaad", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -911,7 +1147,7 @@ export async function logKarigarAdvance(payload: {
 
 export async function fetchDesignCatalog(): Promise<DesignMasterItem[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/designs`);
+    const res = await apiFetch("/api/designs");
     if (res.ok) {
       return await res.json();
     }
@@ -923,7 +1159,7 @@ export async function fetchDesignCatalog(): Promise<DesignMasterItem[]> {
 
 export async function fetchConsumablesStock(): Promise<ConsumableStockItem[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/consumables`);
+    const res = await apiFetch("/api/consumables");
     if (res.ok) {
       return await res.json();
     }
@@ -935,7 +1171,7 @@ export async function fetchConsumablesStock(): Promise<ConsumableStockItem[]> {
 
 export async function toggleConsumableStock(key: string): Promise<ConsumableStockItem> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/consumables/toggle`, {
+    const res = await apiFetch("/api/consumables/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key }),
@@ -956,7 +1192,7 @@ export async function toggleConsumableStock(key: string): Promise<ConsumableStoc
 
 export async function resetDemoData(): Promise<{ success: boolean; message: string }> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/demo/reset`, {
+    const res = await apiFetch("/api/demo/reset", {
       method: "POST",
     });
     if (res.ok) {
@@ -967,7 +1203,7 @@ export async function resetDemoData(): Promise<{ success: boolean; message: stri
   }
   return {
     success: true,
-    message: "ડેમો ડેટા સફળતાપૂર્વક રીસેટ થઈ ગયો (Demo database reset to v2.0 canonical state)",
+    message: "ડેમો ડેટા સફળતાપૂર્વક રીસેટ થઈ ગયો (Demo database reset to v3.0 canonical state)",
   };
 }
 

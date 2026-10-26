@@ -1,4 +1,4 @@
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
@@ -32,36 +32,98 @@ class LotStatus(str, Enum):
     COMPLETED = "COMPLETED"
     OVERDELIVERED = "OVERDELIVERED"
 
+class SubscriptionPlan(str, Enum):
+    TRIAL_15_DAYS = "TRIAL_15_DAYS"
+    PRO_MONTHLY_1500 = "PRO_MONTHLY_1500"
+    PRO_YEARLY_15000 = "PRO_YEARLY_15000"
 
-# --- SQLMODEL TABLES ---
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+
+class UserRole(str, Enum):
+    OWNER = "OWNER"
+    SUPERVISOR = "SUPERVISOR"
+    ACCOUNTANT = "ACCOUNTANT"
+
+
+# --- v3.0 MULTI-TENANT CORE TABLES ---
+
+class Factory(SQLModel, table=True):
+    __tablename__ = "factories"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_code: str = Field(unique=True, index=True, max_length=50) # e.g. "EMB-1001"
+    factory_name: str = Field(nullable=False, max_length=255)
+    owner_name: str = Field(nullable=False, max_length=255)
+    phone: str = Field(unique=True, index=True, max_length=20)
+    city: str = Field(default="Surat", max_length=100)
+    address: str = Field(default="Plot 45, Embroidery Park, Varachha Road, Surat", max_length=500)
+    gstin: str = Field(default="24AAACS1234E1Z5", max_length=50)
+    bank_name: str = Field(default="HDFC Bank (Varachha Branch)", max_length=200)
+    bank_account_no: str = Field(default="50200089234120", max_length=100)
+    bank_ifsc: str = Field(default="HDFC0001234", max_length=50)
+    upi_id: str = Field(default="shreekrishna.embroidery@okaxis", max_length=100)
+    default_machine_heads: int = Field(default=20)
+    subscription_plan: str = Field(default="TRIAL_15_DAYS", max_length=50) # "TRIAL_15_DAYS", "PRO_MONTHLY_1500", "PRO_YEARLY_15000"
+    subscription_status: str = Field(default="ACTIVE", max_length=50) # "ACTIVE", "EXPIRED"
+    trial_ends_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=15))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    users: List["User"] = Relationship(back_populates="factory")
+    parties: List["Party"] = Relationship(back_populates="factory")
+    challans: List["Challan"] = Relationship(back_populates="factory")
+
+
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    user_code: str = Field(unique=True, index=True, max_length=50) # e.g. "USR-1001"
+    factory_id: UUID = Field(foreign_key="factories.id", index=True, nullable=False)
+    login_id: str = Field(unique=True, index=True, max_length=100) # phone or custom login ID
+    password_hash: str = Field(max_length=255)
+    full_name: str = Field(nullable=False, max_length=255)
+    role: str = Field(default="OWNER", max_length=50) # "OWNER", "SUPERVISOR", "ACCOUNTANT"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    factory: Optional[Factory] = Relationship(back_populates="users")
+
+
+# --- OPERATIONAL TABLES (SCOPED BY factory_id) ---
 
 class Party(SQLModel, table=True):
     __tablename__ = "parties"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_id: UUID = Field(foreign_key="factories.id", index=True, nullable=False)
     name: str = Field(index=True, max_length=255)
     phone: Optional[str] = Field(default=None, max_length=20)
     city: str = Field(default="Surat", max_length=100)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
+    factory: Optional[Factory] = Relationship(back_populates="parties")
     challans: List["Challan"] = Relationship(back_populates="party")
 
 
 class Challan(SQLModel, table=True):
     __tablename__ = "challans"
     __table_args__ = (
-        UniqueConstraint("party_id", "challan_number", "challan_type", name="uq_party_challan_type"),
+        UniqueConstraint("factory_id", "party_id", "challan_number", "challan_type", name="uq_factory_party_challan_type"),
     )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_id: UUID = Field(foreign_key="factories.id", index=True, nullable=False)
     challan_type: ChallanType = Field(index=True)
     party_id: UUID = Field(foreign_key="parties.id", index=True)
     challan_number: str = Field(index=True, max_length=100)
     challan_date: date = Field(default_factory=date.today)
     design_number: str = Field(index=True, max_length=100)
     
-    # v2.0 Extensions: Punch Code, Agreed Job-Work Rate & Stitch Details
+    # Punch Code, Agreed Job-Work Rate & Stitch Details
     factory_punch_number: Optional[str] = Field(default=None, max_length=100)
     agreed_rate: float = Field(default=0.0)
     stitches_per_piece: int = Field(default=0)
@@ -75,6 +137,7 @@ class Challan(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
+    factory: Optional[Factory] = Relationship(back_populates="challans")
     party: Optional[Party] = Relationship(back_populates="challans")
 
 
@@ -82,10 +145,11 @@ class LotDelivery(SQLModel, table=True):
     __tablename__ = "lot_deliveries"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_id: UUID = Field(foreign_key="factories.id", index=True, nullable=False)
     inward_challan_id: UUID = Field(foreign_key="challans.id", index=True)
     outward_challan_id: UUID = Field(foreign_key="challans.id", index=True)
     
-    # v2.0 Extensions: Fresh, Returned Raw, Kasar, and Fent
+    # Fresh, Returned Raw, Kasar, and Fent
     fresh_quantity: float = Field(default=0.0, ge=0)
     returned_raw_quantity: float = Field(default=0.0, ge=0)
     kasar_quantity: float = Field(default=0.0, ge=0)
@@ -99,6 +163,7 @@ class MachineShift(SQLModel, table=True):
     __tablename__ = "machine_shifts"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_id: UUID = Field(foreign_key="factories.id", index=True, nullable=False)
     machine_number: str = Field(index=True, max_length=50)
     shift_type: ShiftType = Field(default=ShiftType.DAY)
     shift_date: date = Field(default_factory=date.today)
@@ -107,7 +172,7 @@ class MachineShift(SQLModel, table=True):
     end_stitch_counter: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, default=0))
     total_stitches: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, default=0))
     
-    # v2.0 Extensions: Persisted shift analytics and bonus
+    # Persisted shift analytics and bonus
     target_stitches: int = Field(default=400000, sa_column=Column(BigInteger, nullable=False, default=400000))
     efficiency_pct: float = Field(default=0.0)
     bonus_earned_inr: float = Field(default=0.0)
@@ -124,6 +189,7 @@ class RateQuote(SQLModel, table=True):
     __tablename__ = "rate_quotes"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_id: UUID = Field(foreign_key="factories.id", index=True, nullable=False)
     party_id: Optional[UUID] = Field(default=None, foreign_key="parties.id")
     design_number: str = Field(max_length=100)
     stitch_count: int = Field(gt=0)
@@ -139,6 +205,7 @@ class RateQuote(SQLModel, table=True):
 
 # Challan Schemas
 class ChallanCreate(BaseModel):
+    factory_id: Optional[UUID] = None
     challan_type: ChallanType
     party_id: Optional[UUID] = None
     party_name: Optional[str] = None
@@ -161,6 +228,7 @@ class ChallanCreate(BaseModel):
 
 class ChallanRead(BaseModel):
     id: UUID
+    factory_id: Optional[UUID] = None
     challan_type: ChallanType
     party_id: UUID
     party_name: Optional[str] = None
@@ -226,6 +294,7 @@ class PendingLotRead(BaseModel):
 
 # Machine Shift Schemas
 class ShiftLogCreate(BaseModel):
+    factory_id: Optional[UUID] = None
     machine_number: str
     shift_type: ShiftType = ShiftType.DAY
     shift_date: Optional[date] = None
@@ -240,6 +309,7 @@ class ShiftLogCreate(BaseModel):
 
 class ShiftLogRead(BaseModel):
     id: UUID
+    factory_id: Optional[UUID] = None
     machine_number: str
     shift_type: ShiftType
     shift_date: date
@@ -317,6 +387,90 @@ class PartyLedgerRead(BaseModel):
     whatsapp_udhari_url: str
     inward_challans: List[Dict[str, Any]]
     outward_deliveries: List[Dict[str, Any]]
+    factory_profile: Optional[Dict[str, Any]] = None
+
+class FactoryRegisterRequest(BaseModel):
+    factory_name: str
+    owner_name: str
+    phone: str
+    password: str
+    login_id: Optional[str] = None
+    city: Optional[str] = "Surat"
+    address: Optional[str] = "Plot 45, Embroidery Park, Varachha Road, Surat"
+    gstin: Optional[str] = "24AAACS1234E1Z5"
+    bank_name: Optional[str] = "HDFC Bank (Varachha Branch)"
+    bank_account_no: Optional[str] = "50200089234120"
+    bank_ifsc: Optional[str] = "HDFC0001234"
+    upi_id: Optional[str] = "shreekrishna.embroidery@okaxis"
+    default_machine_heads: Optional[int] = 20
+    seed_starter_lot: bool = True
+    seed_sample_data: bool = True
+
+class LoginRequest(BaseModel):
+    login_id: str
+    password: str
+
+class UserRead(BaseModel):
+    model_config = {"from_attributes": True}
+    id: UUID
+    user_code: str
+    factory_id: UUID
+    login_id: str
+    full_name: str
+    role: str
+    created_at: datetime
+
+class FactoryRead(BaseModel):
+    model_config = {"from_attributes": True}
+    id: UUID
+    factory_code: str
+    factory_name: str
+    owner_name: str
+    phone: str
+    city: str
+    address: str
+    gstin: str
+    bank_name: str
+    bank_account_no: str
+    bank_ifsc: str
+    upi_id: str
+    default_machine_heads: int
+    subscription_plan: str
+    subscription_status: str
+    trial_ends_at: datetime
+    days_remaining: int = 15
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserRead
+    factory: FactoryRead
+    message: str
+
+class FactoryProfileUpdateRequest(BaseModel):
+    factory_name: Optional[str] = None
+    owner_name: Optional[str] = None
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    gstin: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    upi_id: Optional[str] = None
+    default_machine_heads: Optional[int] = None
+    subscription_plan: Optional[str] = None
+
+class DemoTenantInfo(BaseModel):
+    factory_id: Optional[UUID] = None
+    factory_code: str
+    factory_name: str
+    owner_name: str
+    city: str
+    login_id: str
+    role: str = "OWNER"
+    demo_password: str = "123456"
+    description: str = ""
+    subscription_plan: Optional[str] = "PRO_MONTHLY_1500"
 
 # Dashboard Summary Schema
 class DashboardSummaryRead(BaseModel):
@@ -349,6 +503,7 @@ class KarigarAdvance(SQLModel, table=True):
     __tablename__ = "karigar_advances"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    factory_id: Optional[UUID] = Field(default=None, foreign_key="factories.id", index=True)
     karigar_name: str = Field(index=True, max_length=100)
     amount: float = Field(gt=0)
     advance_date: date = Field(default_factory=date.today)

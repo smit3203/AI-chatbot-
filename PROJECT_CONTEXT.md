@@ -66,18 +66,49 @@ $$\text{Recommended Party Quote (25% Margin)} = \text{Total Production Cost per 
 
 ---
 
-## 3. Database Schema Blueprint (PostgreSQL / SQLModel v2.0)
+## 3. Database Schema Blueprint (PostgreSQL / SQLModel v3.0 Multi-Tenant)
 
-### 3.1 `parties` (વેપારી ખાતાઓ)
+### 3.1 `factories` (કારખાના ટેનન્ટ ખાતાઓ - Tenant Table)
+- `id`: UUID / Primary Key (default `uuid4`)
+- `factory_code`: String (Unique, Indexed, e.g. `'EMB-1001'`, `'EMB-1002'`)
+- `factory_name`: String (e.g. `'Shree Krishna Embroidery'`, `'Patel Twist & Embroidery'`)
+- `owner_name`: String (e.g. `'Prince'`, `'Rameshbhai Patel'`)
+- `phone`: String (Unique, Indexed — Owner contact)
+- `city`: String (Default: `'Surat'` / `'Ahmedabad'`)
+- `address`: String (Factory floor location)
+- `gstin`: String (GST Identification Number)
+- `bank_name`: String (e.g. `'HDFC Bank'`, `'Kotak Mahindra Bank'`)
+- `bank_account_no`: String (Current account number)
+- `bank_ifsc`: String (IFSC Code)
+- `upi_id`: String (UPI Virtual Payment Address for QR bill)
+- `default_machine_heads`: Integer (Default: 20)
+- `subscription_plan`: String (`TRIAL_15_DAYS`, `PRO_MONTHLY_1500`, `PRO_YEARLY_15000`)
+- `subscription_status`: String (`ACTIVE`, `EXPIRED`)
+- `trial_ends_at`: DateTime (UTC, default +15 days)
+- `created_at`: DateTime (UTC)
+
+### 3.2 `users` (યુઝર લોગિન ખાતાઓ - User Table)
 - `id`: UUID / Primary Key
+- `user_code`: String (Unique, Indexed, e.g. `'USR-1001'`)
+- `factory_id`: UUID (Foreign Key -> `factories.id`, Indexed)
+- `login_id`: String (Unique, Indexed — Mobile or Username)
+- `password_hash`: String (Hashed credentials)
+- `full_name`: String
+- `role`: String (`OWNER`, `SUPERVISOR`, `ACCOUNTANT`)
+- `created_at`: DateTime (UTC)
+
+### 3.3 `parties` (વેપારી ખાતાઓ - Scoped by `factory_id`)
+- `id`: UUID / Primary Key
+- `factory_id`: UUID (Foreign Key -> `factories.id`, Indexed)
 - `name`: String (Indexed)
 - `phone`: String (Nullable)
 - `city`: String (Default: 'Surat' / 'Ahmedabad')
 - `gstin`: String (Nullable)
 - `created_at`: DateTime (UTC)
 
-### 3.2 `challans` (આવક / જાવક ચલણ માસ્ટર)
+### 3.4 `challans` (આવક / જાવક ચલણ માસ્ટર - Scoped by `factory_id`)
 - `id`: UUID / Primary Key
+- `factory_id`: UUID (Foreign Key -> `factories.id`, Indexed)
 - `challan_type`: Enum (`INWARD`, `OUTWARD`)
 - `party_id`: UUID (Foreign Key -> `parties.id`, Indexed)
 - `challan_number`: String (Physical slip number, Indexed)
@@ -93,11 +124,12 @@ $$\text{Recommended Party Quote (25% Margin)} = \text{Total Production Cost per 
 - `design_photo_url`: String (Nullable, Photo of physical embroidery design sample)
 - `notes`: Text (Nullable)
 - `created_at`: DateTime (UTC)
-- **Constraint:** DB UniqueConstraint `(party_id, challan_number, challan_type)`
+- **Constraint:** DB UniqueConstraint `(factory_id, party_id, challan_number, challan_type)`
 
-### 3.3 `lot_deliveries` (ટુકડે-ટુકડે જાવક લિંક)
+### 3.5 `lot_deliveries` (ટુકડે-ટુકડે જાવક લિંક - Scoped by `factory_id`)
 Links outward deliveries to original inward challan lots.
 - `id`: UUID / Primary Key
+- `factory_id`: UUID (Foreign Key -> `factories.id`, Indexed)
 - `inward_challan_id`: UUID (Foreign Key -> `challans.id`, Indexed)
 - `outward_challan_id`: UUID (Foreign Key -> `challans.id`, Indexed)
 - `fresh_quantity`: Float (Fresh delivered pieces/meters)
@@ -108,8 +140,9 @@ Links outward deliveries to original inward challan lots.
 - `notes`: Text (Nullable)
 - `created_at`: DateTime (UTC)
 
-### 3.4 `machine_shifts` (શિફ્ટ વાઈઝ સ્ટીચ લોગ)
+### 3.6 `machine_shifts` (શિફ્ટ વાઈઝ સ્ટીચ લોગ - Scoped by `factory_id`)
 - `id`: UUID / Primary Key
+- `factory_id`: UUID (Foreign Key -> `factories.id`, Indexed)
 - `machine_number`: String (e.g., 'M-01', 'M-02')
 - `shift_type`: Enum (`DAY`, `NIGHT`)
 - `shift_date`: Date
@@ -127,8 +160,9 @@ Links outward deliveries to original inward challan lots.
 - `notes`: Text (Nullable)
 - `created_at`: DateTime (UTC)
 
-### 3.5 `karigar_advances` (કારીગર ઉપાડ ખાતું)
+### 3.7 `karigar_advances` (કારીગર ઉપાડ ખાતું - Scoped by `factory_id`)
 - `id`: UUID / Primary Key
+- `factory_id`: UUID (Foreign Key -> `factories.id`, Nullable, Indexed)
 - `operator_name`: String (Indexed)
 - `advance_date`: Date
 - `amount_inr`: Float
