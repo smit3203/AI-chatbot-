@@ -4174,6 +4174,275 @@ export default function Home() {
       )}
 
       {/* ========================================================= */}
+      {/* STAFF & ROLE MANAGEMENT MODAL (OWNER ONLY)                */}
+      {/* ========================================================= */}
+      {staffModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Users className="w-5 h-5 text-indigo-300" />
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg">
+                    {t.staffModalTitle}
+                  </h3>
+                  <p className="text-xs text-indigo-200">
+                    {lang === "gu"
+                      ? "તમારા કારખાના માટે માસ્તર અને કારીગર એકાઉન્ટ બનાવો અને મેનેજ કરો"
+                      : "Create and manage Master & Karigar team accounts under your factory"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setStaffModalOpen(false)}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5 overflow-y-auto flex-1 text-xs">
+              {/* Role Matrix Explanation Banner */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200">
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-amber-200 text-amber-900">
+                    👑 OWNER (શેઠ)
+                  </span>
+                  <p className="text-[11px] text-slate-700 font-semibold mt-1">
+                    {lang === "gu" ? "સંપૂર્ણ અધિકાર (Full Access)" : "Full Access Admin"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {lang === "gu"
+                      ? "બધા ૪ ટેબ + સ્ટીચ ભાવ ગણતરી + પાર્ટી ખાતાવહી + સ્ટાફ મેનેજમેન્ટ"
+                      : "All 4 Tabs + Costing Calculator + Party Ledger + Staff"}
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-sky-50 border border-sky-200">
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-sky-200 text-sky-900">
+                    📋 MASTER (માસ્તર)
+                  </span>
+                  <p className="text-[11px] text-slate-700 font-semibold mt-1">
+                    {lang === "gu" ? "ફ્લોર સુપરવાઈઝર (Floor Head)" : "Floor Supervisor"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {lang === "gu"
+                      ? "વોટ્સએપ બોટ + બાકી માલ + શિફ્ટ લોગ્સ + કારીગર ઉપાડ (ખાતાવહી બંધ)"
+                      : "WhatsApp Bot + Pending Lots + Shift Logs + Upaad"}
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-emerald-200 text-emerald-900">
+                    ⚙️ KARIGAR (કારીગર)
+                  </span>
+                  <p className="text-[11px] text-slate-700 font-semibold mt-1">
+                    {lang === "gu" ? "મશીન ઓપરેટર (Operator)" : "Machine Operator"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {lang === "gu"
+                      ? "માત્ર મશીન શિફ્ટ સ્ટીચ લોગિંગ + પોતાનો ઉપાડ અને પગાર ખાતું"
+                      : "Machine Shift Logs & Karigar Upaad & Salary ONLY"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Add New Staff Form */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-indigo-600" />
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    {lang === "gu" ? "➕ નવો માસ્તર કે કારીગર ઉમેરો" : "➕ Add New Staff Account"}
+                  </h4>
+                </div>
+
+                <form onSubmit={handleAddStaffSubmit} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        {lang === "gu" ? "કર્મચારીનું પૂરું નામ" : "Full Name"} *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={lang === "gu" ? "દા.ત. સુરેશ માસ્તર" : "e.g. Suresh Floor Master"}
+                        value={staffForm.full_name}
+                        onChange={(e) => setStaffForm({ ...staffForm, full_name: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        {lang === "gu" ? "લોગિન આઈડી / મોબાઈલ નંબર" : "Login ID / Mobile"} *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={lang === "gu" ? "દા.ત. suresh અથવા 9825011111" : "e.g. suresh or 9825011111"}
+                        value={staffForm.login_id}
+                        onChange={(e) => setStaffForm({ ...staffForm, login_id: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        {lang === "gu" ? "પાસવર્ડ / પિન" : "Password / PIN"} *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="123456"
+                        value={staffForm.password}
+                        onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        {lang === "gu" ? "રોલ પસંદ કરો (Role Permission)" : "Select Role"} *
+                      </label>
+                      <select
+                        value={staffForm.role}
+                        onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value as "OWNER" | "MASTER" | "KARIGAR" })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
+                      >
+                        <option value="MASTER">
+                          📋 MASTER (માસ્તર - Floor Supervisor)
+                        </option>
+                        <option value="KARIGAR">
+                          ⚙️ KARIGAR (કારીગર - Machine Operator)
+                        </option>
+                        <option value="OWNER">
+                          👑 OWNER (શેઠ - Partner/Co-Owner)
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="submit"
+                      disabled={isAddingStaff}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-md disabled:opacity-50"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>
+                        {isAddingStaff
+                          ? lang === "gu" ? "ઉમેરાઈ રહ્યું છે..." : "Adding..."
+                          : lang === "gu" ? "➕ સ્ટાફ એકાઉન્ટ બનાવો" : "Create Staff Account"}
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Existing Staff Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-slate-600" />
+                    <span>
+                      {lang === "gu" ? "કારખાનાના સક્રિય સ્ટાફ એકાઉન્ટ્સ" : "Active Factory Staff Accounts"}
+                    </span>
+                    <span className="text-xs text-slate-500 font-normal">
+                      ({staffList.length} {lang === "gu" ? "સભ્યો" : "members"})
+                    </span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={loadStaffMembers}
+                    disabled={isStaffLoading}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isStaffLoading ? "animate-spin" : ""}`} />
+                    <span>{lang === "gu" ? "રીફ્રેશ" : "Refresh"}</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5">કર્મચારી (Name & ID)</th>
+                        <th className="p-2.5">લોગિન આઈડી (Username)</th>
+                        <th className="p-2.5">રોલ (Role)</th>
+                        <th className="p-2.5 text-right">એક્શન (Action)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {staffList.map((member) => (
+                        <tr key={member.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-2.5 font-bold text-slate-900">
+                            {member.full_name}
+                            <span className="block text-[10px] text-slate-400 font-mono font-normal">
+                              {member.user_code}
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-mono text-slate-700 font-bold">
+                            {member.login_id}
+                          </td>
+                          <td className="p-2.5">
+                            {member.role === "OWNER" ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                                👑 OWNER
+                              </span>
+                            ) : member.role === "MASTER" ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-sky-100 text-sky-800 border border-sky-300">
+                                📋 MASTER
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                ⚙️ KARIGAR
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right">
+                            {member.id === currentUser?.id ? (
+                              <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-1 rounded">
+                                {lang === "gu" ? "તમારું એકાઉન્ટ (You)" : "You (Active)"}
+                              </span>
+                            ) : member.role === "OWNER" ? (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                Co-Owner
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStaff(member.id, member.full_name)}
+                                className="px-2 py-1 text-[11px] rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold transition-all"
+                              >
+                                🗑️ દૂર કરો
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setStaffModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
+              >
+                {lang === "gu" ? "બંધ કરો" : "Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* ADD-ON SECTION 5: ⚡ FLOATING SPEED ACTION BUTTON & MENU   */}
       {/* ========================================================= */}
       {currentUser?.role !== "KARIGAR" && (
