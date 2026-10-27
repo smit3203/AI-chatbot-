@@ -1280,45 +1280,6 @@ export default function Home() {
 
           {/* Right Status & Tenant Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Subscription Status Pill */}
-            {currentFactory && (
-              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="font-bold">{currentFactory.subscription_plan}</span>
-                <span className="text-emerald-600 font-normal">
-                  ({currentFactory.days_remaining ?? 15} {t.daysLeft})
-                </span>
-              </div>
-            )}
-
-            {/* Instant 1-Click Multi-Tenant Switcher */}
-            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 px-1">Switch:</span>
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin("9825012345", "123456")}
-                className={`px-2 py-0.5 text-[11px] font-bold rounded transition-all ${
-                  currentFactory?.factory_code === "EMB-1001"
-                    ? "bg-amber-500 text-white shadow-xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Shree Krishna Embroidery (Surat)"
-              >
-                EMB-1001
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin("9898011111", "123456")}
-                className={`px-2 py-0.5 text-[11px] font-bold rounded transition-all ${
-                  currentFactory?.factory_code === "EMB-1002"
-                    ? "bg-amber-500 text-white shadow-xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Patel Twist & Embroidery (Ahmedabad)"
-              >
-                EMB-1002
-              </button>
-            </div>
 
             {/* Cloud & API Integrations Live Status Badge */}
             <button
