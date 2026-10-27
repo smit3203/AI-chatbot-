@@ -246,16 +246,35 @@ def seed_database():
         session.commit()
         session.refresh(factory_1)
 
-        user_1 = User(
+        # Seed All 3 Roles for Factory Tenant #1 (Shree Krishna Embroidery)
+        user_1_owner = User(
             user_code="USR-1001",
             factory_id=factory_1.id,
-            login_id="9825012345",
+            login_id="owner",
             password_hash=hash_password("123456"),
-            full_name="Prince Seth",
+            full_name="Prince (Factory Owner)",
             role=UserRole.OWNER,
             created_at=now
         )
-        session.add(user_1)
+        user_1_master = User(
+            user_code="USR-1002",
+            factory_id=factory_1.id,
+            login_id="master",
+            password_hash=hash_password("123456"),
+            full_name="Bharatbhai (Floor Master)",
+            role=UserRole.MASTER,
+            created_at=now
+        )
+        user_1_karigar = User(
+            user_code="USR-1003",
+            factory_id=factory_1.id,
+            login_id="karigar",
+            password_hash=hash_password("123456"),
+            full_name="Ramesh Karigar (Machine Operator)",
+            role=UserRole.KARIGAR,
+            created_at=now
+        )
+        session.add_all([user_1_owner, user_1_master, user_1_karigar])
         session.commit()
 
         # Tenant 1 Parties
@@ -626,16 +645,35 @@ def seed_database():
         session.commit()
         session.refresh(factory_2)
 
-        user_2 = User(
-            user_code="USR-1002",
+        # Seed All 3 Roles for Factory Tenant #2 (Patel Twist & Embroidery Works)
+        user_2_owner = User(
+            user_code="USR-2001",
             factory_id=factory_2.id,
             login_id="9898011111",
             password_hash=hash_password("123456"),
-            full_name="Rameshbhai Patel",
+            full_name="Rameshbhai Patel (Owner)",
             role=UserRole.OWNER,
             created_at=now
         )
-        session.add(user_2)
+        user_2_master = User(
+            user_code="USR-2002",
+            factory_id=factory_2.id,
+            login_id="9898022222",
+            password_hash=hash_password("123456"),
+            full_name="Sureshbhai (Floor Master)",
+            role=UserRole.MASTER,
+            created_at=now
+        )
+        user_2_karigar = User(
+            user_code="USR-2003",
+            factory_id=factory_2.id,
+            login_id="9898033333",
+            password_hash=hash_password("123456"),
+            full_name="Mohan Karigar (Operator)",
+            role=UserRole.KARIGAR,
+            created_at=now
+        )
+        session.add_all([user_2_owner, user_2_master, user_2_karigar])
         session.commit()
 
         # Tenant 2 Parties (Ahmedabad-only)

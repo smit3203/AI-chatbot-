@@ -652,11 +652,34 @@ export async function fetchDemoTenants(): Promise<DemoTenant[]> {
       {
         factory_code: "EMB-1001",
         factory_name: "Shree Krishna Embroidery",
-        owner_name: "Prince",
+        owner_name: "Prince (Factory Owner)",
         city: "Surat",
-        login_id: "9825012345",
+        login_id: "owner",
+        role: "OWNER",
         demo_password: "123456",
-        description: "સુરત ક્લસ્ટર - ૪ પાર્ટીઓ, ૧૨૦૦ નંગ લોટ, ૪ મશીન શિફ્ટ",
+        description: "👑 OWNER (શેઠ) - Full Access (All 4 Tabs, Costing, Ledger, Staff Manager)",
+        subscription_plan: "PRO_MONTHLY_1500"
+      },
+      {
+        factory_code: "EMB-1001",
+        factory_name: "Shree Krishna Embroidery",
+        owner_name: "Bharatbhai (Floor Master)",
+        city: "Surat",
+        login_id: "master",
+        role: "MASTER",
+        demo_password: "123456",
+        description: "📋 MASTER (માસ્તર) - Floor Supervisor (WhatsApp AI Bot, Pending Lots, Shift Logs, Karigar Upaad)",
+        subscription_plan: "PRO_MONTHLY_1500"
+      },
+      {
+        factory_code: "EMB-1001",
+        factory_name: "Shree Krishna Embroidery",
+        owner_name: "Ramesh Karigar (Machine Operator)",
+        city: "Surat",
+        login_id: "karigar",
+        role: "KARIGAR",
+        demo_password: "123456",
+        description: "⚙️ KARIGAR (કારીગર) - Machine Operator (Machine Shift Change & Karigar Upaad ONLY)",
         subscription_plan: "PRO_MONTHLY_1500"
       },
       {
@@ -665,6 +688,7 @@ export async function fetchDemoTenants(): Promise<DemoTenant[]> {
         owner_name: "Rameshbhai Patel",
         city: "Ahmedabad",
         login_id: "9898011111",
+        role: "OWNER",
         demo_password: "123456",
         description: "અમદાવાદ ક્લસ્ટર - ૨ અલગ પાર્ટીઓ (બંસી, કર્ણાવતી), સ્વતંત્ર ડેટા",
         subscription_plan: "PRO_YEARLY_15000"
@@ -1271,6 +1295,61 @@ export async function fetchSystemIntegrations(): Promise<SystemIntegrations> {
       tally_csv_export: "READY",
     },
   };
+}
+
+// --- STAFF & ROLE MANAGEMENT API HELPERS ---
+
+export interface StaffCreatePayload {
+  full_name: string;
+  login_id: string;
+  password: string;
+  role: "MASTER" | "KARIGAR" | "OWNER";
+}
+
+export async function fetchStaffMembers(): Promise<User[]> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE_URL}/api/auth/staff`, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "સ્ટાફ લિસ્ટ લોડ કરવામાં ભૂલ આવી (Failed to load staff)");
+  }
+  return await res.json();
+}
+
+export async function createStaffMember(payload: StaffCreatePayload): Promise<User> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE_URL}/api/auth/staff`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "નવો સ્ટાફ ઉમેરવામાં ભૂલ આવી (Failed to add staff)");
+  }
+  return await res.json();
+}
+
+export async function deleteStaffMember(userId: string): Promise<{ message: string }> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE_URL}/api/auth/staff/${userId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "સ્ટાફ ડિલીટ કરવામાં ભૂલ આવી (Failed to delete staff)");
+  }
+  return await res.json();
 }
 
 

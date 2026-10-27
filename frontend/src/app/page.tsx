@@ -39,6 +39,9 @@ import {
   ChevronUp,
   Zap,
   Check,
+  Users,
+  UserPlus,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -51,6 +54,10 @@ import {
   fetchSystemIntegrations,
   User,
   Factory,
+  fetchStaffMembers,
+  createStaffMember,
+  deleteStaffMember,
+  StaffCreatePayload,
   DemoTenant,
   getCurrentUser,
   getCurrentFactory,
@@ -114,6 +121,23 @@ export default function Home() {
   const [integrations, setIntegrations] = useState<SystemIntegrations | null>(null);
   const [integrationsModalOpen, setIntegrationsModalOpen] = useState(false);
 
+  // Staff & Roles Management State (v3.1 RBAC)
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [staffList, setStaffList] = useState<User[]>([]);
+  const [isStaffLoading, setIsStaffLoading] = useState(false);
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [staffForm, setStaffForm] = useState<{
+    full_name: string;
+    login_id: string;
+    password: string;
+    role: "MASTER" | "KARIGAR" | "OWNER";
+  }>({
+    full_name: "",
+    login_id: "",
+    password: "123456",
+    role: "MASTER",
+  });
+
   // Login form state
   const [loginForm, setLoginForm] = useState({
     login_id: "9825012345",
@@ -157,13 +181,69 @@ export default function Home() {
       setCurrentUser(savedUser);
       setCurrentFactory(savedFactory);
       setProfileForm(savedFactory);
+      if (savedUser.role === "KARIGAR") {
+        setActiveTab("calculator");
+        setTab3SubTab("shifts");
+      }
       fetchMe()
         .then((me) => {
           setCurrentUser(me.user);
           setCurrentFactory(me.factory);
           setProfileForm(me.factory);
+          if (me.user?.role === "KARIGAR") {
+            setActiveTab("calculator");
+            setTab3SubTab("shifts");
+          }
         })
         .catch((e) => console.warn("fetchMe error:", e));
+    }
+  };
+
+  // --- STAFF MANAGEMENT HANDLERS (v3.1 RBAC) ---
+  const loadStaffMembers = async () => {
+    setIsStaffLoading(true);
+    try {
+      const list = await fetchStaffMembers();
+      setStaffList(list);
+    } catch (err: any) {
+      console.error("Failed to load staff list:", err);
+    } finally {
+      setIsStaffLoading(false);
+    }
+  };
+
+  const handleOpenStaffModal = () => {
+    setStaffModalOpen(true);
+    loadStaffMembers();
+  };
+
+  const handleAddStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffForm.full_name || !staffForm.login_id || !staffForm.password) {
+      showToast("કૃપા કરીને બધી માહિતી ભરો (Please fill all fields)", "error");
+      return;
+    }
+    setIsAddingStaff(true);
+    try {
+      const created = await createStaffMember(staffForm);
+      showToast(`નવો સ્ટાફ એકાઉન્ટ '${created.full_name}' (${created.role}) સફળતાપૂર્વક ઉમેરાઈ ગયો!`, "success");
+      setStaffForm({ full_name: "", login_id: "", password: "123456", role: "MASTER" });
+      loadStaffMembers();
+    } catch (err: any) {
+      showToast(err.message || "સ્ટાફ ઉમેરવામાં ભૂલ આવી", "error");
+    } finally {
+      setIsAddingStaff(false);
+    }
+  };
+
+  const handleDeleteStaff = async (userId: string, name: string) => {
+    if (!confirm(`શું તમે ખરેખર '${name}' સ્ટાફ એકાઉન્ટ દૂર કરવા માંગો છો?`)) return;
+    try {
+      await deleteStaffMember(userId);
+      showToast(`'${name}' સ્ટાફ એકાઉન્ટ દૂર કરવામાં આવ્યું.`, "success");
+      loadStaffMembers();
+    } catch (err: any) {
+      showToast(err.message || "સ્ટાફ ડિલીટ કરવામાં ભૂલ આવી", "error");
     }
   };
 
@@ -175,6 +255,12 @@ export default function Home() {
       setCurrentUser(res.user);
       setCurrentFactory(res.factory);
       setProfileForm(res.factory);
+      if (res.user.role === "KARIGAR") {
+        setActiveTab("calculator");
+        setTab3SubTab("shifts");
+      } else {
+        setActiveTab("bot");
+      }
       showToast(`${t.loginSuccessAlert || "લોગિન સફળ"}: ${res.factory.factory_name}`, "success");
       await refreshAllData();
     } catch (err: any) {
@@ -191,6 +277,12 @@ export default function Home() {
       setCurrentUser(res.user);
       setCurrentFactory(res.factory);
       setProfileForm(res.factory);
+      if (res.user.role === "KARIGAR") {
+        setActiveTab("calculator");
+        setTab3SubTab("shifts");
+      } else {
+        setActiveTab("bot");
+      }
       showToast(`${t.loginSuccessAlert || "લોગિન સફળ"}: ${res.factory.factory_name} (${res.factory.factory_code})`, "success");
       await refreshAllData();
     } catch (err: any) {
@@ -958,68 +1050,102 @@ export default function Home() {
                 </button>
               </form>
 
-              {/* Instant 1-Click Multi-Tenant Demo Switcher */}
+{/* 1-Click 3-Role Demo Cards (v3.1 RBAC) */}
               <div className="pt-4 border-t border-slate-700/80">
-                <div className="flex items-center gap-2 mb-3 text-amber-400 font-bold text-xs">
-                  <Sparkles className="w-4 h-4" />
-                  <span>{t.demoAccountsTitle}</span>
+                <div className="flex items-center justify-between gap-2 mb-3 text-amber-400 font-bold text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4" />
+                    <span>૧-ક્લિક ૩-રોલ ડેમો કાર્ડ્સ (1-Click 3-Role Demo Cards):</span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded border border-amber-500/20">
+                    EMB-1001 (Surat)
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Demo Tenant 1 */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Role 1: OWNER */}
                   <button
                     type="button"
-                    onClick={() => handleQuickDemoLogin("9825012345", "123456")}
+                    onClick={() => handleQuickDemoLogin("owner", "123456")}
                     disabled={isAuthLoading}
-                    className="p-3.5 bg-slate-900/90 hover:bg-slate-900 border border-amber-500/30 hover:border-amber-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
+                    className="p-3 bg-slate-900/90 hover:bg-slate-900 border border-amber-500/40 hover:border-amber-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          EMB-1001
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          👑 OWNER (શેઠ)
                         </span>
-                        <span className="text-[10px] text-amber-400 font-bold">Surat</span>
+                        <span className="text-[9px] text-amber-400 font-bold">Surat</span>
                       </div>
                       <h4 className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors">
-                        શ્રી કૃષ્ણા એમ્બ્રોઇડરી
+                        Prince (શેઠ)
                       </h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        માલિક: Prince • ૪ વેપારી • ૪ લોટ
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                        તમામ ૪ ટેબ • કોસ્ટિંગ • પાર્ટી ખાતું • સ્ટાફ મેનેજમેન્ટ
                       </p>
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
-                      <span className="font-mono">9825012345</span>
+                    <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
+                      <span className="font-mono text-amber-400 font-bold">ID: owner</span>
                       <span className="text-amber-400 font-bold group-hover:translate-x-0.5 transition-transform">
-                        પ્રવેશ કરો →
+                        પ્રવેશ →
                       </span>
                     </div>
                   </button>
 
-                  {/* Demo Tenant 2 */}
+                  {/* Role 2: MASTER */}
                   <button
                     type="button"
-                    onClick={() => handleQuickDemoLogin("9898011111", "123456")}
+                    onClick={() => handleQuickDemoLogin("master", "123456")}
                     disabled={isAuthLoading}
-                    className="p-3.5 bg-slate-900/90 hover:bg-slate-900 border border-purple-500/30 hover:border-purple-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
+                    className="p-3 bg-slate-900/90 hover:bg-slate-900 border border-blue-500/40 hover:border-blue-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          EMB-1002
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                          📋 MASTER (માસ્તર)
                         </span>
-                        <span className="text-[10px] text-purple-300 font-bold">Ahmedabad</span>
+                        <span className="text-[9px] text-blue-400 font-bold">Supervisor</span>
                       </div>
-                      <h4 className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">
-                        પટેલ ટ્વિસ્ટ એન્ડ એમ્બ્રોઇડરી
+                      <h4 className="text-xs font-bold text-white group-hover:text-blue-300 transition-colors">
+                        Bharatbhai (માસ્તર)
                       </h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        માલિક: Rameshbhai • Kotak Bank
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                        વોટ્સએપ બોટ • બાકી માલ • મશીન શિફ્ટ • કારીગર ઉપાડ
                       </p>
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
-                      <span className="font-mono">9898011111</span>
-                      <span className="text-purple-400 font-bold group-hover:translate-x-0.5 transition-transform">
-                        પ્રવેશ કરો →
+                    <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
+                      <span className="font-mono text-blue-400 font-bold">ID: master</span>
+                      <span className="text-blue-400 font-bold group-hover:translate-x-0.5 transition-transform">
+                        પ્રવેશ →
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Role 3: KARIGAR */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoLogin("karigar", "123456")}
+                    disabled={isAuthLoading}
+                    className="p-3 bg-slate-900/90 hover:bg-slate-900 border border-emerald-500/40 hover:border-emerald-400 rounded-2xl text-left transition-all group shadow-sm flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          ⚙️ KARIGAR (કારીગર)
+                        </span>
+                        <span className="text-[9px] text-emerald-400 font-bold">Operator</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">
+                        Ramesh Karigar
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                        મશીન શિફ્ટ બદલો (+₹૬૭.૫૦ બોનસ) • પગાર & ઉપાડ ખાતું
+                      </p>
+                    </div>
+                    <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
+                      <span className="font-mono text-emerald-400 font-bold">ID: karigar</span>
+                      <span className="text-emerald-400 font-bold group-hover:translate-x-0.5 transition-transform">
+                        પ્રવેશ →
                       </span>
                     </div>
                   </button>
@@ -1266,15 +1392,33 @@ export default function Home() {
                   </span>
                 )}
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-500 font-medium flex items-center gap-2">
+              <div className="text-[11px] sm:text-xs text-slate-500 font-medium flex items-center flex-wrap gap-1.5 mt-0.5">
                 <span>{currentFactory?.city || "Surat"}</span>
                 {currentUser && (
                   <>
                     <span>•</span>
-                    <span className="text-slate-700 font-semibold">{currentUser.full_name} ({currentUser.role})</span>
+                    <span className="text-slate-800 font-semibold">{currentUser.full_name}</span>
+                    {currentUser.role === "OWNER" && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-xs">
+                        <span>👑</span>
+                        <span>OWNER (શેઠ)</span>
+                      </span>
+                    )}
+                    {currentUser.role === "MASTER" && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300 flex items-center gap-1 shadow-xs">
+                        <span>📋</span>
+                        <span>MASTER (માસ્તર)</span>
+                      </span>
+                    )}
+                    {currentUser.role === "KARIGAR" && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-xs">
+                        <span>⚙️</span>
+                        <span>KARIGAR (કારીગર)</span>
+                      </span>
+                    )}
                   </>
                 )}
-              </p>
+              </div>
             </div>
           </div>
 
@@ -1297,18 +1441,32 @@ export default function Home() {
               </span>
             </button>
 
-            {/* Factory Profile & Plan Modal Button */}
-            <button
-              onClick={() => {
-                setProfileForm(currentFactory || {});
-                setProfileModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all shadow-sm"
-              title={t.btnFactoryProfile}
-            >
-              <Settings className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden sm:inline">{t.btnFactoryProfile}</span>
-            </button>
+            {/* Manage Staff & Roles Button (ONLY for OWNER) */}
+            {currentUser?.role === "OWNER" && (
+              <button
+                onClick={handleOpenStaffModal}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold transition-all shadow-sm"
+                title={t.btnStaffManagement}
+              >
+                <Users className="w-3.5 h-3.5 text-indigo-700" />
+                <span className="hidden sm:inline">{t.btnStaffManagement}</span>
+              </button>
+            )}
+
+            {/* Factory Profile & Plan Modal Button (ONLY for OWNER) */}
+            {currentUser?.role === "OWNER" && (
+              <button
+                onClick={() => {
+                  setProfileForm(currentFactory || {});
+                  setProfileModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all shadow-sm"
+                title={t.btnFactoryProfile}
+              >
+                <Settings className="w-3.5 h-3.5 text-slate-600" />
+                <span className="hidden sm:inline">{t.btnFactoryProfile}</span>
+              </button>
+            )}
 
             {/* Logout / Switch Owner Button */}
             <button
@@ -1333,21 +1491,51 @@ export default function Home() {
         </div>
       </header>
 
-      {/* --- TAB NAVIGATION BAR --- */}
+      {/* --- TAB NAVIGATION BAR (3-ROLE RBAC) --- */}
       <nav className="no-print bg-slate-900 text-slate-300 border-b border-slate-800 sticky top-[57px] z-30 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center overflow-x-auto scrollbar-none px-2 sm:px-4">
-          {[
-            { id: "bot", label: t.tabBot, icon: Sparkles },
-            { id: "pending", label: t.tabPending, icon: Package },
-            { id: "calculator", label: t.tabCalculator, icon: Calculator },
-            { id: "ledger", label: t.tabLedger, icon: FileText },
-          ].map((tab) => {
+          {(
+            currentUser?.role === "KARIGAR"
+              ? [
+                  { id: "shifts", label: lang === "gu" ? "🖥️ મશીન શિફ્ટ બદલો" : "🖥️ Machine Shift Change", icon: Clock },
+                  { id: "karigar", label: lang === "gu" ? "👷 કારીગર ઉપાડ & પગાર" : "👷 Karigar Upaad & Salary", icon: UserIcon },
+                ]
+              : currentUser?.role === "MASTER"
+              ? [
+                  { id: "bot", label: t.tabBot, icon: Sparkles },
+                  { id: "pending", label: t.tabPending, icon: Package },
+                  { id: "shifts", label: lang === "gu" ? "🖥️ મશીન શિફ્ટ બદલો" : "🖥️ Machine Shift Change", icon: Clock },
+                  { id: "karigar", label: lang === "gu" ? "👷 કારીગર ઉપાડ & પગાર" : "👷 Karigar Upaad & Salary", icon: UserIcon },
+                ]
+              : [
+                  { id: "bot", label: t.tabBot, icon: Sparkles },
+                  { id: "pending", label: t.tabPending, icon: Package },
+                  { id: "calculator", label: t.tabCalculator, icon: Calculator },
+                  { id: "ledger", label: t.tabLedger, icon: FileText },
+                ]
+          ).map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isActive =
+              tab.id === "shifts"
+                ? activeTab === "calculator" && tab3SubTab === "shifts"
+                : tab.id === "karigar"
+                ? activeTab === "calculator" && tab3SubTab === "karigar"
+                : activeTab === tab.id;
+
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => {
+                  if (tab.id === "shifts") {
+                    setActiveTab("calculator");
+                    setTab3SubTab("shifts");
+                  } else if (tab.id === "karigar") {
+                    setActiveTab("calculator");
+                    setTab3SubTab("karigar");
+                  } else {
+                    setActiveTab(tab.id as any);
+                  }
+                }}
                 className={`flex items-center gap-2 px-3.5 sm:px-5 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${
                   isActive
                     ? "border-amber-500 text-amber-400 bg-slate-800/60"
@@ -1977,7 +2165,9 @@ export default function Home() {
             <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
                 {[
-                  { id: "calculator", label: t.subTabCalc, icon: Calculator },
+                  ...(currentUser?.role === "OWNER"
+                    ? [{ id: "calculator", label: t.subTabCalc, icon: Calculator }]
+                    : []),
                   { id: "shifts", label: t.subTabShifts, icon: Clock },
                   { id: "karigar", label: t.subTabKarigar, icon: UserIcon },
                 ].map((st) => {
@@ -2000,14 +2190,16 @@ export default function Home() {
                 })}
               </div>
 
-              {/* Design Catalog Shortcut in Tab 3 */}
-              <button
-                onClick={() => setDesignGalleryOpen(true)}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 transition-colors shadow-xs"
-              >
-                <Palette className="w-3.5 h-3.5 text-purple-600" />
-                <span>{t.btnDesignCatalog}</span>
-              </button>
+              {/* Design Catalog Shortcut in Tab 3 (OWNER & MASTER ONLY) */}
+              {currentUser?.role !== "KARIGAR" && (
+                <button
+                  onClick={() => setDesignGalleryOpen(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <Palette className="w-3.5 h-3.5 text-purple-600" />
+                  <span>{t.btnDesignCatalog}</span>
+                </button>
+              )}
             </div>
 
             {/* SUB-TAB 1: STITCH-TO-PROFIT PRICING CALCULATOR */}
@@ -3984,6 +4176,7 @@ export default function Home() {
       {/* ========================================================= */}
       {/* ADD-ON SECTION 5: ⚡ FLOATING SPEED ACTION BUTTON & MENU   */}
       {/* ========================================================= */}
+      {currentUser?.role !== "KARIGAR" && (
       <div className="fixed bottom-6 right-6 z-40 no-print flex flex-col items-end gap-3">
         {/* Backdrop for speed menu */}
         {speedMenuOpen && (
@@ -4081,6 +4274,7 @@ export default function Home() {
           </span>
         </button>
       </div>
+      )}
     </div>
   );
 }

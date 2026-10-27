@@ -43,8 +43,8 @@ class SubscriptionStatus(str, Enum):
 
 class UserRole(str, Enum):
     OWNER = "OWNER"
-    SUPERVISOR = "SUPERVISOR"
-    ACCOUNTANT = "ACCOUNTANT"
+    MASTER = "MASTER"
+    KARIGAR = "KARIGAR"
 
 
 # --- v3.0 MULTI-TENANT CORE TABLES ---
@@ -459,6 +459,12 @@ class FactoryProfileUpdateRequest(BaseModel):
     upi_id: Optional[str] = None
     default_machine_heads: Optional[int] = None
     subscription_plan: Optional[str] = None
+
+class StaffCreateRequest(BaseModel):
+    full_name: str
+    login_id: str
+    password: str
+    role: str = "MASTER" # "OWNER", "MASTER", "KARIGAR"
 
 class DemoTenantInfo(BaseModel):
     factory_id: Optional[UUID] = None

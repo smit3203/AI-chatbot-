@@ -39,6 +39,7 @@ frontend/.env.local
 *.sqlite
 *.sqlite3
 embroidery_os.db
+backend/uploads/
 
 # Logs
 logs

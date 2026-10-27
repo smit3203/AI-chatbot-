@@ -28,7 +28,7 @@ from models import (
     KarigarAdvance, KarigarAdvanceCreate, KarigarAdvanceRead, KarigarSalaryRecordRead,
     DesignMasterRead, ConsumableStockRead, ConsumableToggleRequest,
     FactoryRegisterRequest, LoginRequest, UserRead, FactoryRead,
-    AuthResponse, FactoryProfileUpdateRequest, DemoTenantInfo
+    AuthResponse, FactoryProfileUpdateRequest, DemoTenantInfo, StaffCreateRequest
 )
 from auth import (
     hash_password, verify_password,
@@ -347,17 +347,41 @@ def login(payload: LoginRequest, session: Session = Depends(get_session)):
     Authenticates user via Login ID (Mobile Number / User Code / Factory Code) and Password.
     Returns stateless JWT-style token, User profile, and isolated Factory details.
     """
-    login_id = payload.login_id.strip()
+    raw_login = payload.login_id.strip()
+    login_id_lower = raw_login.lower()
+
+    # Friendly aliases for 1-click role logins and mobile testing
+    alias_map = {
+        "owner": ("EMB-1001", "OWNER"),
+        "9825012345": ("EMB-1001", "OWNER"),
+        "master": ("EMB-1001", "MASTER"),
+        "9825011111": ("EMB-1001", "MASTER"),
+        "karigar": ("EMB-1001", "KARIGAR"),
+        "9825022222": ("EMB-1001", "KARIGAR"),
+    }
+
+    user = None
+    if login_id_lower in alias_map:
+        f_code, r_role = alias_map[login_id_lower]
+        target_f = session.exec(select(Factory).where(Factory.factory_code == f_code)).first()
+        if target_f:
+            user = session.exec(
+                select(User).where(User.factory_id == target_f.id, User.role == r_role)
+            ).first()
 
     # 1. Match User by login_id or user_code
-    user = session.exec(
-        select(User).where((User.login_id == login_id) | (User.user_code == login_id))
-    ).first()
+    if not user:
+        user = session.exec(
+            select(User).where(
+                (func.lower(User.login_id) == login_id_lower) | 
+                (func.lower(User.user_code) == login_id_lower)
+            )
+        ).first()
 
     # 2. Or match by Factory Code or Factory Phone
     if not user:
         matched_factory = session.exec(
-            select(Factory).where((Factory.factory_code == login_id) | (Factory.phone == login_id))
+            select(Factory).where((Factory.factory_code == raw_login) | (Factory.phone == raw_login))
         ).first()
         if matched_factory:
             user = session.exec(
@@ -456,33 +480,192 @@ def update_factory_profile(
 
 @app.get("/api/auth/demo-tenants", response_model=List[DemoTenantInfo])
 def list_demo_tenants(session: Session = Depends(get_session)):
-    """Returns pre-seeded demo accounts for 1-click instant tenant switching during investor/client demos."""
-    factories = session.exec(select(Factory).order_by(Factory.factory_code.asc())).all()
+    """Returns 3 role accounts under primary factory EMB-1001 for 1-click testing, plus EMB-1002."""
+    f1 = session.exec(select(Factory).where(Factory.factory_code == "EMB-1001")).first()
+    f2 = session.exec(select(Factory).where(Factory.factory_code == "EMB-1002")).first()
     output = []
-    for f in factories:
-        primary_user = session.exec(select(User).where(User.factory_id == f.id)).first()
-        login_id = primary_user.login_id if primary_user else f.phone
-        if f.factory_code == "EMB-1001":
-            desc = "સુરત ક્લસ્ટર - ૪ પાર્ટીઓ (રાધે, મારુતિ, શિવમ, ખોડિયાર), ૧૨૦૦ નંગ લોટ, ૪ મશીન શિફ્ટ"
-        elif f.factory_code == "EMB-1002":
-            desc = "અમદાવાદ ક્લસ્ટર - ૨ અલગ પાર્ટીઓ (બંસી એથનિક, કર્ણાવતી), સ્વતંત્ર ડેટા અને કોટક બેંક હિસાબ"
-        else:
-            desc = f"{f.city} ક્લસ્ટર - સ્વતંત્ર કારખાનું ટેનન્ટ ડેટા"
 
+    if f1:
+        # Role 1: OWNER
         output.append(
             DemoTenantInfo(
-                factory_id=f.id,
-                factory_code=f.factory_code,
-                factory_name=f.factory_name,
-                owner_name=f.owner_name,
-                city=f.city,
-                login_id=login_id,
+                factory_id=f1.id,
+                factory_code=f1.factory_code,
+                factory_name=f1.factory_name,
+                owner_name="Prince (Factory Owner)",
+                city=f1.city,
+                login_id="owner",
+                role="OWNER",
                 demo_password="123456",
-                description=desc,
-                subscription_plan=f.subscription_plan
+                description="👑 OWNER (શેઠ) - Full Access (All 4 Tabs, Costing, Ledger, Staff Manager)",
+                subscription_plan=f1.subscription_plan
+            )
+        )
+        # Role 2: MASTER
+        output.append(
+            DemoTenantInfo(
+                factory_id=f1.id,
+                factory_code=f1.factory_code,
+                factory_name=f1.factory_name,
+                owner_name="Bharatbhai (Floor Master)",
+                city=f1.city,
+                login_id="master",
+                role="MASTER",
+                demo_password="123456",
+                description="📋 MASTER (માસ્તર) - Floor Supervisor (WhatsApp AI Bot, Pending Lots, Shift Logs, Karigar Upaad)",
+                subscription_plan=f1.subscription_plan
+            )
+        )
+        # Role 3: KARIGAR
+        output.append(
+            DemoTenantInfo(
+                factory_id=f1.id,
+                factory_code=f1.factory_code,
+                factory_name=f1.factory_name,
+                owner_name="Ramesh Karigar (Machine Operator)",
+                city=f1.city,
+                login_id="karigar",
+                role="KARIGAR",
+                demo_password="123456",
+                description="⚙️ KARIGAR (કારીગર) - Machine Operator (Machine Shift Change & Karigar Upaad ONLY)",
+                subscription_plan=f1.subscription_plan
+            )
+        )
+
+    if f2:
+        output.append(
+            DemoTenantInfo(
+                factory_id=f2.id,
+                factory_code=f2.factory_code,
+                factory_name=f2.factory_name,
+                owner_name=f2.owner_name,
+                city=f2.city,
+                login_id="9898011111",
+                role="OWNER",
+                demo_password="123456",
+                description="અમદાવાદ ક્લસ્ટર - સ્વતંત્ર કારખાનું (EMB-1002)",
+                subscription_plan=f2.subscription_plan
             )
         )
     return output
+
+
+# --- 2B. IN-ACCOUNT STAFF & ROLE MANAGEMENT (SCOPED TO FACTORY_ID) ---
+
+@app.get("/api/auth/staff", response_model=List[UserRead])
+def list_factory_staff(
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """Returns all staff users belonging to the active factory tenant."""
+    users = session.exec(
+        select(User).where(User.factory_id == tenant.factory.id).order_by(User.created_at.asc())
+    ).all()
+    return [UserRead.model_validate(u, from_attributes=True) for u in users]
+
+
+@app.post("/api/auth/staff", response_model=UserRead, status_code=201)
+def create_factory_staff(
+    payload: StaffCreateRequest,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """
+    Creates a new staff member (MASTER, KARIGAR, or OWNER) for the active factory tenant.
+    Restricted to OWNER role.
+    """
+    current_role = tenant.user.role if tenant.user else "OWNER"
+    current_role_str = current_role.value if hasattr(current_role, 'value') else str(current_role)
+    if current_role_str != "OWNER":
+        raise HTTPException(
+            status_code=403,
+            detail="ફક્ત કારખાનાના શેઠ (Owner) જ નવો સ્ટાફ ઉમેરી શકે છે. (Only Owner can add staff.)"
+        )
+
+    clean_login = payload.login_id.strip()
+    clean_name = payload.full_name.strip()
+    clean_role = payload.role.strip().upper()
+
+    if clean_role not in ["OWNER", "MASTER", "KARIGAR"]:
+        raise HTTPException(status_code=400, detail="અમાન્ય રોલ. માન્ય રોલ: OWNER, MASTER, KARIGAR")
+
+    # Check for login_id uniqueness
+    existing = session.exec(select(User).where(func.lower(User.login_id) == clean_login.lower())).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="આ લોગિન આઈડી પહેલેથી વપરાયેલ છે. કૃપા કરીને બીજું આઈડી અથવા મોબાઈલ વાપરો."
+        )
+
+    # Generate user code
+    count = session.exec(select(func.count(User.id))).one() or 0
+    user_code = f"USR-{1001 + count}"
+    while session.exec(select(User).where(User.user_code == user_code)).first():
+        count += 1
+        user_code = f"USR-{1001 + count}"
+
+    new_user = User(
+        user_code=user_code,
+        factory_id=tenant.factory.id,
+        login_id=clean_login,
+        password_hash=hash_password(payload.password.strip()),
+        full_name=clean_name,
+        role=clean_role,
+        created_at=datetime.now(timezone.utc)
+    )
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+
+    return UserRead.model_validate(new_user, from_attributes=True)
+
+
+@app.delete("/api/auth/staff/{user_id}")
+def delete_factory_staff(
+    user_id: UUID,
+    tenant: TenantContext = Depends(get_current_tenant),
+    session: Session = Depends(get_session)
+):
+    """
+    Deletes a staff account from the active factory.
+    Restricted to OWNER role. Primary owner cannot be deleted.
+    """
+    current_role = tenant.user.role if tenant.user else "OWNER"
+    current_role_str = current_role.value if hasattr(current_role, 'value') else str(current_role)
+    if current_role_str != "OWNER":
+        raise HTTPException(
+            status_code=403,
+            detail="ફક્ત કારખાનાના શેઠ (Owner) જ સ્ટાફ ડિલીટ કરી શકે છે. (Only Owner can remove staff.)"
+        )
+
+    user = session.get(User, user_id)
+    if not user or user.factory_id != tenant.factory.id:
+        raise HTTPException(status_code=404, detail="સ્ટાફ એકાઉન્ટ મળ્યું નથી (Staff not found)")
+
+    if tenant.user and tenant.user.id == user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="તમે તમારું પોતાનું એડમિન/ઓનર એકાઉન્ટ ડિલીટ કરી શકતા નથી. (Cannot delete currently logged-in account.)"
+        )
+
+    # Prevent deleting primary owner if only one owner remains
+    user_role_str = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    if user_role_str == "OWNER":
+        owners_count = session.exec(
+            select(func.count(User.id)).where(
+                User.factory_id == tenant.factory.id,
+                (User.role == "OWNER") | (User.role == UserRole.OWNER)
+            )
+        ).one()
+        if owners_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="મુખ્ય માલિકનું ખાતું ડિલીટ કરી શકાય નહીં. ઓછામાં ઓછો એક શેઠ (Owner) હોવો જરૂરી છે."
+            )
+
+    session.delete(user)
+    session.commit()
+    return {"message": "સ્ટાફ એકાઉન્ટ સફળતાપૂર્વક દૂર કરવામાં આવ્યું (Staff deleted successfully)"}
 
 
 # --- 3. DASHBOARD KPI SUMMARY (TENANT SCOPED) ---
