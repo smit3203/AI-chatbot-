@@ -257,7 +257,12 @@ def register_factory(payload: FactoryRegisterRequest, session: Session = Depends
         code_index += 1
         factory_code = f"EMB-{code_index}"
 
-    user_code = f"USR-{code_index}"
+    existing_users_count = session.exec(select(func.count(User.id))).one() or 0
+    u_idx = 1001 + existing_users_count
+    user_code = f"USR-{u_idx}"
+    while session.exec(select(User).where(User.user_code == user_code)).first():
+        u_idx += 1
+        user_code = f"USR-{u_idx}"
 
     now = datetime.now(timezone.utc)
     trial_end = now + timedelta(days=15)
