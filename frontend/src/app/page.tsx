@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Settings,
   LogOut,
@@ -42,6 +42,7 @@ import {
   Users,
   UserPlus,
   Trash2,
+  Lock,
 } from "lucide-react";
 
 import {
@@ -120,6 +121,19 @@ export default function Home() {
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [integrations, setIntegrations] = useState<SystemIntegrations | null>(null);
   const [integrationsModalOpen, setIntegrationsModalOpen] = useState(false);
+
+  // Role & Permissions Helper (v3.2 Karigar Isolation & Read-Only RBAC)
+  const isKarigar = currentUser?.role === "KARIGAR" || (currentUser?.role as any) === "OPERATOR";
+  const canEditShiftLogs = currentUser?.role === "OWNER" || currentUser?.role === "MASTER";
+  const canEditUpaad = currentUser?.role === "OWNER" || currentUser?.role === "MASTER";
+
+  const normalizeKarigarName = useCallback((name: string = "") => {
+    return name.replace(/\s*\(.*?\)\s*/g, "").trim().toLowerCase();
+  }, []);
+
+  const getCleanKarigarName = useCallback((name: string = "") => {
+    return name.replace(/\s*\(.*?\)\s*/g, "").trim();
+  }, []);
 
   // Staff & Roles Management State (v3.1 RBAC)
   const [staffModalOpen, setStaffModalOpen] = useState(false);
@@ -381,6 +395,131 @@ export default function Home() {
     notes: "રવિવાર રોકડ ઉપાડ (Sunday Cash)",
   });
 
+  // Check if an operator name or advance belongs to the logged-in Karigar
+  const isMyKarigar = useCallback((operatorName: string = "") => {
+    if (!currentUser) return false;
+    const targetNorm = normalizeKarigarName(operatorName);
+    const userFullNameNorm = normalizeKarigarName(currentUser.full_name || "");
+    const userLoginNorm = normalizeKarigarName(currentUser.login_id || (currentUser as any)?.username || "");
+
+    if (userFullNameNorm && targetNorm === userFullNameNorm) return true;
+    if (userFullNameNorm && (targetNorm.includes(userFullNameNorm) || userFullNameNorm.includes(targetNorm))) return true;
+    if (userLoginNorm && (targetNorm.includes(userLoginNorm) || userLoginNorm.includes(targetNorm))) return true;
+    return false;
+  }, [currentUser, normalizeKarigarName]);
+
+  // Unify duplicate rows (e.g. 'Ramesh Karigar' and 'Ramesh Karigar (Machine Operator)')
+  const mergedKarigarSalaries = useMemo(() => {
+    const map = new Map<string, KarigarSalaryRecord>();
+
+    for (const record of karigarsSalary) {
+      const normKey = normalizeKarigarName(record.karigar_name);
+      const cleanName = getCleanKarigarName(record.karigar_name) || record.karigar_name;
+
+      if (!map.has(normKey)) {
+        map.set(normKey, {
+          ...record,
+          karigar_name: cleanName,
+          advances: [...(record.advances || [])].map((a) => ({
+            ...a,
+            karigar_name: cleanName,
+          })),
+        });
+      } else {
+        const existing = map.get(normKey)!;
+        existing.shifts_completed += record.shifts_completed;
+        existing.total_base_pay += record.total_base_pay;
+        existing.total_stitch_bonus += record.total_stitch_bonus;
+        existing.total_gross_earnings += record.total_gross_earnings;
+        existing.total_upaad += record.total_upaad;
+        existing.net_payable_salary += record.net_payable_salary;
+
+        const existingAdvIds = new Set((existing.advances || []).map((a) => a.id));
+        for (const adv of (record.advances || [])) {
+          if (!existingAdvIds.has(adv.id)) {
+            existing.advances.push({
+              ...adv,
+              karigar_name: cleanName,
+            });
+            existingAdvIds.add(adv.id);
+          }
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [karigarsSalary, normalizeKarigarName, getCleanKarigarName]);
+
+  // Strict Data Isolation: If KARIGAR, display ONLY their single merged record
+  const displayKarigarSalaries = useMemo(() => {
+    if (!isKarigar) {
+      return mergedKarigarSalaries;
+    }
+    const filtered = mergedKarigarSalaries.filter((k) => isMyKarigar(k.karigar_name));
+    if (filtered.length > 0) return filtered;
+
+    // Fallback: If not found in dynamic mock, return a personal record for current logged-in user
+    const cleanName = getCleanKarigarName(currentUser?.full_name || currentUser?.login_id || "Ramesh Karigar");
+    return [{
+      karigar_name: cleanName,
+      phone: "+91 98980 11000",
+      base_shift_pay_rate: 450,
+      shifts_completed: 0,
+      total_base_pay: 0,
+      total_stitch_bonus: 0,
+      total_gross_earnings: 0,
+      total_upaad: 0,
+      net_payable_salary: 0,
+      advances: [],
+    }];
+  }, [isKarigar, mergedKarigarSalaries, isMyKarigar, getCleanKarigarName, currentUser]);
+
+  // Top 4 KPI Cards: Personal totals for KARIGAR, Factory totals for OWNER/MASTER
+  const karigarKpiData = useMemo(() => {
+    if (isKarigar) {
+      const myRecord = displayKarigarSalaries[0];
+      const cleanName = getCleanKarigarName(myRecord?.karigar_name || currentUser?.full_name || currentUser?.login_id || "Ramesh Karigar");
+      return {
+        card1Title: lang === "gu" ? "કારીગર પ્રોફાઇલ" : "My Profile",
+        card1Value: cleanName,
+        card1Sub: lang === "gu" ? "(ઓપરેટર)" : "(Operator)",
+        card2Title: lang === "gu" ? "મારી ભરેલી શિફ્ટ" : "My Total Shifts",
+        card2Value: myRecord?.shifts_completed || 0,
+        card2Sub: lang === "gu" ? "શિફ્ટ" : "shifts",
+        card3Title: lang === "gu" ? "મારો કુલ ઉપાડ (₹)" : "My Total Upaad (₹)",
+        card3Value: myRecord?.total_upaad || 0,
+        card4Title: lang === "gu" ? "મારો બાકી પગાર (₹)" : "My Net Payable (₹)",
+        card4Value: myRecord?.net_payable_salary || 0,
+      };
+    }
+
+    return {
+      card1Title: lang === "gu" ? "કુલ કારીગરો" : "Total Karigars",
+      card1Value: mergedKarigarSalaries.length,
+      card1Sub: lang === "gu" ? "ઓપરેટર" : "operators",
+      card2Title: lang === "gu" ? "કુલ ભરેલી શિફ્ટ" : "Total Shifts",
+      card2Value: mergedKarigarSalaries.reduce((a, c) => a + c.shifts_completed, 0),
+      card2Sub: lang === "gu" ? "શિફ્ટ" : "shifts",
+      card3Title: t.tblTotalUpaad,
+      card3Value: mergedKarigarSalaries.reduce((a, c) => a + c.total_upaad, 0),
+      card4Title: t.tblNetPayable,
+      card4Value: mergedKarigarSalaries.reduce((a, c) => a + c.net_payable_salary, 0),
+    };
+  }, [isKarigar, displayKarigarSalaries, mergedKarigarSalaries, currentUser, lang, t, getCleanKarigarName]);
+
+  // Filter Recent Cash Advances: Only logged-in Karigar's advances when role is KARIGAR
+  const displayAdvances = useMemo(() => {
+    const allAdvances = displayKarigarSalaries.flatMap((k) => k.advances || []);
+    const cleaned = allAdvances.map((adv) => ({
+      ...adv,
+      karigar_name: getCleanKarigarName(adv.karigar_name),
+    }));
+    if (isKarigar) {
+      return cleaned.filter((adv) => isMyKarigar(adv.karigar_name));
+    }
+    return cleaned;
+  }, [displayKarigarSalaries, isKarigar, isMyKarigar, getCleanKarigarName]);
+
   // Add-on 2: Visual Design Master Catalog
   const [designGalleryOpen, setDesignGalleryOpen] = useState(false);
   const [designCatalog, setDesignCatalog] = useState<DesignMasterItem[]>([]);
@@ -417,6 +556,10 @@ export default function Home() {
 
   const handleSaveUpaad = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditUpaad) {
+      showToast(lang === "gu" ? "ફક્ત માલિક અથવા માસ્ટર ઉપાડ નોંધી શકે છે" : "Only Owner or Master can log cash advances", "error");
+      return;
+    }
     try {
       await logKarigarAdvance({
         karigar_name: upaadForm.karigar_name,
@@ -934,6 +1077,10 @@ export default function Home() {
 
   const handleSaveShift = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditShiftLogs) {
+      showToast(lang === "gu" ? "ફક્ત માલિક અથવા માસ્ટર શિફ્ટ લોગ કરી શકે છે" : "Only Owner or Master can log shifts", "error");
+      return;
+    }
     try {
       await logShift({
         ...newShift,
@@ -2326,13 +2473,12 @@ export default function Home() {
         {/* ========================================================= */}
         {activeTab === "calculator" && (
           <div className="space-y-5">
-            {/* SUB-TAB CONTROLLER FOR TAB 3 */}
+            {/* SUB-TAB CONTROLLER FOR TAB 3 (OWNER ONLY - KARIGAR & MASTER USE TOP NAVBAR DIRECTLY) */}
+            {currentUser?.role === "OWNER" && (
             <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
                 {[
-                  ...(currentUser?.role === "OWNER"
-                    ? [{ id: "calculator", label: t.subTabCalc, icon: Calculator }]
-                    : []),
+                  { id: "calculator", label: t.subTabCalc, icon: Calculator },
                   { id: "shifts", label: t.subTabShifts, icon: Clock },
                   { id: "karigar", label: t.subTabKarigar, icon: UserIcon },
                 ].map((st) => {
@@ -2355,17 +2501,16 @@ export default function Home() {
                 })}
               </div>
 
-              {/* Design Catalog Shortcut in Tab 3 (OWNER & MASTER ONLY) */}
-              {currentUser?.role !== "KARIGAR" && (
-                <button
-                  onClick={() => setDesignGalleryOpen(true)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 transition-colors shadow-xs"
-                >
-                  <Palette className="w-3.5 h-3.5 text-purple-600" />
-                  <span>{t.btnDesignCatalog}</span>
-                </button>
-              )}
+              {/* Design Catalog Shortcut in Tab 3 (OWNER ONLY) */}
+              <button
+                onClick={() => setDesignGalleryOpen(true)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <Palette className="w-3.5 h-3.5 text-purple-600" />
+                <span>{t.btnDesignCatalog}</span>
+              </button>
             </div>
+            )}
 
             {/* SUB-TAB 1: STITCH-TO-PROFIT PRICING CALCULATOR */}
             {tab3SubTab === "calculator" && (
@@ -2520,13 +2665,20 @@ export default function Home() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setNewShiftFormOpen(true)}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm w-fit"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{t.btnLogNewShift}</span>
-                </button>
+                {canEditShiftLogs ? (
+                  <button
+                    onClick={() => setNewShiftFormOpen(true)}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm w-fit"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{t.btnLogNewShift}</span>
+                  </button>
+                ) : (
+                  <span className="px-3.5 py-1.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 w-fit shadow-xs">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>🔒 ફક્ત જોવા માટે (View Only)</span>
+                  </span>
+                )}
               </div>
 
               {/* Shifts Table */}
@@ -2612,42 +2764,49 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => setUpaadModalOpen(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 w-fit"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>{t.btnLogUpaad}</span>
-                    </button>
+                    {canEditUpaad ? (
+                      <button
+                        onClick={() => setUpaadModalOpen(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 w-fit"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{t.btnLogUpaad}</span>
+                      </button>
+                    ) : (
+                      <span className="px-3.5 py-1.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 w-fit shadow-xs">
+                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>🔒 ફક્ત જોવા માટે (View Only)</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Karigar KPI Summary Cards */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                      <p className="text-[11px] font-bold text-slate-500 uppercase">કુલ કારીગરો</p>
-                      <p className="text-2xl font-black text-slate-900 font-mono mt-1">
-                        {karigarsSalary.length} <span className="text-xs font-normal">ઓપરેટર</span>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase">{karigarKpiData.card1Title}</p>
+                      <p className={`text-slate-900 font-mono mt-1 ${isKarigar ? "text-lg sm:text-xl font-bold truncate" : "text-2xl font-black"}`}>
+                        {karigarKpiData.card1Value} {karigarKpiData.card1Sub && <span className="text-xs font-normal">{karigarKpiData.card1Sub}</span>}
                       </p>
                     </div>
 
                     <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200">
-                      <p className="text-[11px] font-bold text-blue-700 uppercase">કુલ ભરેલી શિફ્ટ</p>
+                      <p className="text-[11px] font-bold text-blue-700 uppercase">{karigarKpiData.card2Title}</p>
                       <p className="text-2xl font-black text-blue-900 font-mono mt-1">
-                        {karigarsSalary.reduce((a, c) => a + c.shifts_completed, 0)} <span className="text-xs font-normal">શિફ્ટ</span>
+                        {karigarKpiData.card2Value} <span className="text-xs font-normal">{karigarKpiData.card2Sub}</span>
                       </p>
                     </div>
 
                     <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200">
-                      <p className="text-[11px] font-bold text-rose-700 uppercase">{t.tblTotalUpaad}</p>
+                      <p className="text-[11px] font-bold text-rose-700 uppercase">{karigarKpiData.card3Title}</p>
                       <p className="text-2xl font-black text-rose-800 font-mono mt-1">
-                        ₹{karigarsSalary.reduce((a, c) => a + c.total_upaad, 0).toLocaleString()}
+                        ₹{karigarKpiData.card3Value.toLocaleString()}
                       </p>
                     </div>
 
                     <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-300">
-                      <p className="text-[11px] font-extrabold text-emerald-800 uppercase">{t.tblNetPayable}</p>
+                      <p className="text-[11px] font-extrabold text-emerald-800 uppercase">{karigarKpiData.card4Title}</p>
                       <p className="text-2xl font-black text-emerald-900 font-mono mt-1">
-                        ₹{karigarsSalary.reduce((a, c) => a + c.net_payable_salary, 0).toLocaleString()}
+                        ₹{karigarKpiData.card4Value.toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -2668,7 +2827,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-mono">
-                        {karigarsSalary.map((k, idx) => {
+                        {displayKarigarSalaries.map((k, idx) => {
                           const whatsappSlipText = `*શ્રી કૃષ્ણ એમ્બ્રોઇડરી - કારીગર માસિક પગાર સ્લિપ*\n\nકારીગર: ${k.karigar_name}\nકુલ શિફ્ટ: ${k.shifts_completed} (રૂ. ${k.total_base_pay.toLocaleString()})\nસ્ટીચ બોનસ: રૂ. ${k.total_stitch_bonus.toLocaleString()}\nકુલ કમાણી: રૂ. ${k.total_gross_earnings.toLocaleString()}\nકુલ રોકડ ઉપાડ: -રૂ. ${k.total_upaad.toLocaleString()}\n--------------------------------\n*ચૂકવવાપાત્ર ચોખ્ખો પગાર: રૂ. ${k.net_payable_salary.toLocaleString()}*\n--------------------------------\nતારીખ: ${new Date().toLocaleDateString("en-GB")}\n*સુપરવાઇઝર સહી સાથે સ્વીકારેલ.*`;
 
                           return (
@@ -2724,10 +2883,12 @@ export default function Home() {
                     <span>{t.recentUpaadTitle}</span>
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                    {karigarsSalary
-                      .flatMap((k) => k.advances)
-                      .slice(0, 6)
-                      .map((adv) => (
+                    {displayAdvances.length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-xs text-slate-400">
+                        {lang === "gu" ? "કોઈ ઉપાડ નોંધાયેલ નથી" : "No cash advances found"}
+                      </div>
+                    ) : (
+                      displayAdvances.slice(0, 6).map((adv) => (
                         <div key={adv.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
                           <div>
                             <span className="font-bold text-slate-900 block">{adv.karigar_name}</span>
@@ -2737,7 +2898,8 @@ export default function Home() {
                             -₹{adv.amount.toLocaleString()}
                           </span>
                         </div>
-                      ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -3614,7 +3776,7 @@ export default function Home() {
       {/* ========================================================= */}
       {/* MODAL 4: NEW SHIFT LOG MODAL                              */}
       {/* ========================================================= */}
-      {newShiftFormOpen && (
+      {newShiftFormOpen && canEditShiftLogs && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
           <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -3846,7 +4008,7 @@ export default function Home() {
       {/* ========================================================= */}
       {/* MODAL 6: 💸 LOG KARIGAR CASH ADVANCE (ઉપાડ) MODAL          */}
       {/* ========================================================= */}
-      {upaadModalOpen && (
+      {upaadModalOpen && canEditUpaad && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
           <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

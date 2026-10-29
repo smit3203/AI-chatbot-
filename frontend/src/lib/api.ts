@@ -1105,10 +1105,20 @@ export async function fetchKarigarSalarySummary(): Promise<KarigarSalaryRecord[]
       "Bhaveshbhai": { shifts: 22, bonus: 1200 },
     };
 
-    // Factor dynamic shifts logged
+    // Helper to normalize operator names by stripping parentheses
+    const normalizeName = (name: string = "") =>
+      name.replace(/\s*\(.*?\)\s*/g, "").trim().toLowerCase();
+
+    // Factor dynamic shifts logged into normalized karigar records
     shiftsSum.shifts.forEach((s) => {
-      if (!karigarMap[s.operator_name]) {
-        karigarMap[s.operator_name] = { shifts: 1, bonus: s.bonus_earned_inr };
+      const norm = normalizeName(s.operator_name);
+      const existingKey = Object.keys(karigarMap).find((k) => normalizeName(k) === norm);
+      if (existingKey) {
+        karigarMap[existingKey].shifts += 1;
+        karigarMap[existingKey].bonus += (s.bonus_earned_inr || 0);
+      } else {
+        const cleanName = s.operator_name.replace(/\s*\(.*?\)\s*/g, "").trim();
+        karigarMap[cleanName] = { shifts: 1, bonus: s.bonus_earned_inr || 0 };
       }
     });
 
@@ -1116,9 +1126,11 @@ export async function fetchKarigarSalarySummary(): Promise<KarigarSalaryRecord[]
 
     return Object.keys(karigarMap).map((kName) => {
       const data = karigarMap[kName];
-      const advances = MOCK_KARIGAR_ADVANCES.filter(
-        (a) => a.karigar_name.toLowerCase().includes(kName.toLowerCase()) || kName.toLowerCase().includes(a.karigar_name.toLowerCase())
-      );
+      const advances = MOCK_KARIGAR_ADVANCES.filter((a) => {
+        const normA = normalizeName(a.karigar_name);
+        const normK = normalizeName(kName);
+        return normA === normK || normA.includes(normK) || normK.includes(normA);
+      });
       const totalUpaad = advances.reduce((acc, curr) => acc + curr.amount, 0);
       const totalBasePay = data.shifts * baseShiftPayRate;
       const totalGross = totalBasePay + data.bonus;
