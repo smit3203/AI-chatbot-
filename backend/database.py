@@ -115,6 +115,11 @@ def init_db():
 
 
 def get_session() -> Generator[Session, None, None]:
-    """Dependency that yields database session."""
+    """Dependency that yields database session with safe transaction cleanup."""
     with Session(engine) as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
+

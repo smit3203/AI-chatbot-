@@ -28,8 +28,9 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     if not password_hash:
         return False
     if ":" not in password_hash:
-        # Fallback for plain demo comparison
-        return plain_password == password_hash
+        # Fallback for plain demo comparison only in development environments
+        is_dev = os.getenv("ENVIRONMENT", "development").lower() == "development"
+        return is_dev and hmac.compare_digest(plain_password, password_hash)
     try:
         salt, key_hex = password_hash.split(":", 1)
         calc_key = hashlib.pbkdf2_hmac("sha256", plain_password.encode("utf-8"), salt.encode("utf-8"), 100000)

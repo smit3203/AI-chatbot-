@@ -118,11 +118,13 @@ def get_current_tenant(
         except Exception:
             pass
 
-    # 3. Default fallback to Tenant #1 (EMB-1001) for backwards compatibility
-    factory = session.exec(select(Factory).order_by(Factory.created_at.asc())).first()
-    if factory:
-        user = session.exec(select(User).where(User.factory_id == factory.id)).first()
-        return TenantContext(factory=factory, user=user)
+    # 3. Default fallback to Tenant #1 (EMB-1001) for backwards compatibility in development only
+    is_dev = os.getenv("ENVIRONMENT", "development").lower() == "development"
+    if is_dev:
+        factory = session.exec(select(Factory).order_by(Factory.created_at.asc())).first()
+        if factory:
+            user = session.exec(select(User).where(User.factory_id == factory.id)).first()
+            return TenantContext(factory=factory, user=user)
 
     raise HTTPException(
         status_code=401,
@@ -447,7 +449,15 @@ def update_factory_profile(
     tenant: TenantContext = Depends(get_current_tenant),
     session: Session = Depends(get_session)
 ):
-    """Allows logged-in factory owner to update their factory branding, GSTIN, bank, and UPI details."""
+    """Allows logged-in factory owner to update their factory branding, GSTIN, bank, and UPI details. Restricted to OWNER."""
+    current_role = tenant.user.role if tenant.user else "OWNER"
+    current_role_str = current_role.value if hasattr(current_role, "value") else str(current_role)
+    if current_role_str != "OWNER":
+        raise HTTPException(
+            status_code=403,
+            detail="ફક્ત કારખાનાના શેઠ (Owner) જ પ્રોફાઇલ અને બેંક વિગતો બદલી શકે છે. (Only Owner can update factory profile.)"
+        )
+
     factory = session.get(Factory, tenant.factory.id)
     if not factory:
         raise HTTPException(status_code=404, detail="Factory not found")
@@ -1699,11 +1709,25 @@ def log_karigar_upaad(
     tenant: TenantContext = Depends(get_current_tenant),
     session: Session = Depends(get_session)
 ):
-    """Logs a cash advance (upaad) taken by a machine operator inside this factory."""
+    """Logs a cash advance (upaad) taken by a machine operator inside this factory. Restricted to OWNER or MASTER."""
+    current_role = tenant.user.role if tenant.user else "OWNER"
+    current_role_str = current_role.value if hasattr(current_role, "value") else str(current_role)
+    if current_role_str not in ["OWNER", "MASTER"]:
+        raise HTTPException(
+            status_code=403,
+            detail="ફક્ત કારખાના માલિક અથવા માસ્ટર ઉપાડ નોંધી શકે છે. (Only Owner or Master can log cash advances.)"
+        )
+
+    if payload.amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="ઉપાડની રકમ શૂન્ય કરતા વધુ હોવી જોઈએ. (Advance amount must be greater than zero.)"
+        )
+
     adv = KarigarAdvance(
         factory_id=tenant.factory_id,
-        karigar_name=payload.karigar_name,
-        amount=payload.amount,
+        karigar_name=payload.karigar_name.strip(),
+        amount=round(float(payload.amount), 2),
         advance_date=payload.advance_date or date.today(),
         notes=payload.notes or "રોકડ ઉપાડ (Cash advance)"
     )
