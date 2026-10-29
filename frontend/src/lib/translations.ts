@@ -27,6 +27,13 @@ export const translations = {
     presetMaruti: "📦 ૨. ટુકડે જાવક (મારુતિ ૪૦૦ ફ્રેશ + ૫૦ કાચો)",
     presetDuplicate: "⚠️ ૩. ડબલ એન્ટ્રી ચેક (Duplicate Guard)",
     presetDahao: "🖥️ ૪. મશીન LCD ફોટો (Dahao ૪.૪૫ લાખ ટાંકા)",
+    karigarTabBot: "💬 વોટ્સએપ AI બોટ (LCD ફોટો)",
+    karigarTabShifts: "🖥️ મશીન શિફ્ટ લોગ (Machine Shift Logs)",
+    karigarTabSalary: "👷 કારીગર ઉપાડ & પગાર (Karigar Upaad & Salary)",
+    karigarBotWelcome: "નમસ્તે કારીગર ભાઈ! તમારી શિફ્ટ પૂરી થાય ત્યારે અહીં મશીનના LCD સ્ક્રીનનો ફોટો મોકલો અથવા નીચેના '🖥️ મશીન LCD ફોટો' બટનથી ટેસ્ટ કરો.",
+    karigarBotPlaceholder: "મશીન LCD સ્ક્રીનનો ફોટો મોકલો અથવા ટાંકા લખો...",
+    karigarPresetLcd: "🖥️ મશીન LCD ફોટો - Dahao 4.45 લાખ ટાંકા / Machine LCD Counter OCR",
+    btnViewInShifts: "🖥️ શિફ્ટ લોગમાં જુઓ (View in Machine Shift Logs)",
 
     // OCR Confirmation Card
     ocrCardTitle: "✨ AI ચલણ ડેટા તૈયાર (તપાસો & સેવ કરો)",
@@ -286,6 +293,13 @@ export const translations = {
     presetMaruti: "📦 2. Partial Outward (Maruti 400 Fresh + 50 Raw)",
     presetDuplicate: "⚠️ 3. Duplicate Guard Check (#RC-1048)",
     presetDahao: "🖥️ 4. Machine LCD Photo (Dahao 4.45L Stitches)",
+    karigarTabBot: "💬 WhatsApp AI Bot (LCD OCR)",
+    karigarTabShifts: "🖥️ Machine Shift Logs",
+    karigarTabSalary: "👷 Karigar Upaad & Salary",
+    karigarBotWelcome: "Hello Operator! Snap and upload your Machine LCD Stitch Counter photo here at shift change, or click the '🖥️ Machine LCD Photo' button above to log your shift stitches and bonus.",
+    karigarBotPlaceholder: "Snap Machine LCD photo or type shift stitches...",
+    karigarPresetLcd: "🖥️ Machine LCD Photo - Dahao 4.45L Stitches / Machine LCD Counter OCR",
+    btnViewInShifts: "🖥️ View in Machine Shift Logs",
 
     // OCR Confirmation Card
     ocrCardTitle: "✨ AI Challan Data Extracted (Review & Save)",

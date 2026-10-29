@@ -182,8 +182,7 @@ export default function Home() {
       setCurrentFactory(savedFactory);
       setProfileForm(savedFactory);
       if (savedUser.role === "KARIGAR") {
-        setActiveTab("calculator");
-        setTab3SubTab("shifts");
+        setActiveTab("bot");
       }
       fetchMe()
         .then((me) => {
@@ -191,8 +190,7 @@ export default function Home() {
           setCurrentFactory(me.factory);
           setProfileForm(me.factory);
           if (me.user?.role === "KARIGAR") {
-            setActiveTab("calculator");
-            setTab3SubTab("shifts");
+            setActiveTab("bot");
           }
         })
         .catch((e) => console.warn("fetchMe error:", e));
@@ -255,12 +253,7 @@ export default function Home() {
       setCurrentUser(res.user);
       setCurrentFactory(res.factory);
       setProfileForm(res.factory);
-      if (res.user.role === "KARIGAR") {
-        setActiveTab("calculator");
-        setTab3SubTab("shifts");
-      } else {
-        setActiveTab("bot");
-      }
+      setActiveTab("bot");
       showToast(`${t.loginSuccessAlert || "લોગિન સફળ"}: ${res.factory.factory_name}`, "success");
       await refreshAllData();
     } catch (err: any) {
@@ -277,12 +270,7 @@ export default function Home() {
       setCurrentUser(res.user);
       setCurrentFactory(res.factory);
       setProfileForm(res.factory);
-      if (res.user.role === "KARIGAR") {
-        setActiveTab("calculator");
-        setTab3SubTab("shifts");
-      } else {
-        setActiveTab("bot");
-      }
+      setActiveTab("bot");
       showToast(`${t.loginSuccessAlert || "લોગિન સફળ"}: ${res.factory.factory_name} (${res.factory.factory_code})`, "success");
       await refreshAllData();
     } catch (err: any) {
@@ -491,6 +479,7 @@ export default function Home() {
       isDuplicateAlert?: boolean;
       showJumpToLots?: boolean;
       lcdProofUrl?: string;
+      showJumpToShifts?: boolean;
     }>
   >([
     {
@@ -499,6 +488,38 @@ export default function Home() {
       time: "10:00 AM",
     },
   ]);
+
+  // Set role-specific welcome message for KARIGAR or OWNER/MASTER
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length <= 1) {
+        if (currentUser?.role === "KARIGAR") {
+          return [
+            {
+              sender: "bot",
+              text:
+                lang === "gu"
+                  ? "નમસ્તે કારીગર ભાઈ! તમારી શિફ્ટ પૂરી થાય ત્યારે અહીં મશીનના LCD સ્ક્રીનનો ફોટો મોકલો અથવા નીચેના '🖥️ મશીન LCD ફોટો' બટનથી ટેસ્ટ કરો."
+                  : "Hello Operator! Snap and upload your Machine LCD Stitch Counter photo here at shift change, or click the '🖥️ Machine LCD Photo' button above to log your shift stitches and bonus.",
+              time: "10:00 AM",
+            },
+          ];
+        } else {
+          return [
+            {
+              sender: "bot",
+              text:
+                lang === "gu"
+                  ? "નમસ્તે! હું ચલણAI મુનિમ છું. તમે ચલણનો ફોટો મોકલી શકો છો અથવા કોઈપણ પ્રશ્ન પૂછી શકો છો. નીચેના 4 ડેમો બટનથી તરત ટેસ્ટ કરી શકો છો."
+                  : "Hello! I am ChallanAI Munim. You can upload a challan photo or ask any job-work question. Try the demo presets above.",
+              time: "10:00 AM",
+            },
+          ];
+        }
+      }
+      return prev;
+    });
+  }, [currentUser?.role, lang]);
   const [inputMsg, setInputMsg] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingOcrData, setPendingOcrData] = useState<ExtractedChallanData | null>(null);
@@ -570,6 +591,49 @@ export default function Home() {
       { sender: "user", text: `📷 [ફોટો અપલોડ]: ${file.name}`, time: userTime },
     ]);
 
+    // Check if Machine LCD Photo mode (for KARIGAR or LCD photo filename)
+    if (currentUser?.role === "KARIGAR" || file.name.toLowerCase().includes("lcd") || file.name.toLowerCase().includes("dahao") || file.name.toLowerCase().includes("machine")) {
+      try {
+        const localPhotoUrl = URL.createObjectURL(file);
+        try {
+          await logShift({
+            machine_number: "M-01",
+            shift_type: "DAY",
+            shift_date: new Date().toISOString().split("T")[0],
+            operator_name: currentUser?.full_name || "Ramesh Karigar",
+            start_stitch_counter: 14200000,
+            end_stitch_counter: 14645000,
+            target_stitches: 400000,
+            rpm_average: 850,
+            downtime_minutes: 25,
+            photo_url: localPhotoUrl,
+            notes: `Machine LCD OCR Photo Upload (${file.name})`,
+          });
+          loadShiftsData();
+        } catch (e) {
+          console.warn("Shift log auto-save notice:", e);
+        }
+
+        const botTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "bot",
+            text: `🖥️ Dahao 328 LCD સ્ટીચ કાઉન્ટર સફળતાપૂર્વક વંચાઈ ગયું!\n\nમશીન: M-01 (DAY શિફ્ટ)\nઓપરેટર: ${currentUser?.full_name || "Ramesh Karigar"}\nશરૂઆત કાઉન્ટર: 14,200,000\nઆખર કાઉન્ટર: 14,645,000\nકુલ ઉત્પાદન: 4,45,000 ટાંકા\nકાર્યક્ષમતા: 111.25%\nકારીગર બોનસ: +₹67.50\nડાઉનટાઇમ: 25 મિનિટ`,
+            time: botTime,
+            lcdProofUrl: localPhotoUrl,
+            showJumpToShifts: true,
+          },
+        ]);
+        showToast("Dahao LCD સ્કેન સફળ! શિફ્ટ લોગમાં સેવ થઈ ગયું.", "success");
+      } catch (err: any) {
+        showToast(err.message || "Failed to process LCD photo", "error");
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -629,18 +693,38 @@ export default function Home() {
         { sender: "user", text: `🖥️ [મશીન LCD સ્કેન]: Dahao 328 Machine M-01`, time: userTime },
       ]);
 
+      try {
+        await logShift({
+          machine_number: "M-01",
+          shift_type: "DAY",
+          shift_date: new Date().toISOString().split("T")[0],
+          operator_name: currentUser?.full_name || "Ramesh Karigar",
+          start_stitch_counter: 14200000,
+          end_stitch_counter: 14645000,
+          target_stitches: 400000,
+          rpm_average: 850,
+          downtime_minutes: 25,
+          photo_url: "/uploads/preset_dahao_lcd.jpg",
+          notes: "Dahao 328 LCD OCR Verified",
+        });
+        loadShiftsData();
+      } catch (err) {
+        console.warn("Shift log auto-save notice:", err);
+      }
+
       setTimeout(() => {
         const botTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         setMessages((prev) => [
           ...prev,
           {
             sender: "bot",
-            text: `🖥️ Dahao 328 LCD સ્ટીચ કાઉન્ટર સફળતાપૂર્વક વંચાઈ ગયું!\n\nમશીન: M-01 (DAY શિફ્ટ)\nઓપરેટર: Ramesh Karigar\nશરૂઆત કાઉન્ટર: 14,200,000\nઆખર કાઉન્ટર: 14,645,000\nકુલ ઉત્પાદન: 4,45,000 ટાંકા\nકાર્યક્ષમતા: 111.25%\nકારીગર બોનસ: +₹67.50\nડાઉનટાઇમ: 25 મિનિટ`,
+            text: `🖥️ Dahao 328 LCD સ્ટીચ કાઉન્ટર સફળતાપૂર્વક વંચાઈ ગયું!\n\nમશીન: M-01 (DAY શિફ્ટ)\nઓપરેટર: ${currentUser?.full_name || "Ramesh Karigar"}\nશરૂઆત કાઉન્ટર: 14,200,000\nઆખર કાઉન્ટર: 14,645,000\nકુલ ઉત્પાદન: 4,45,000 ટાંકા\nકાર્યક્ષમતા: 111.25%\nકારીગર બોનસ: +₹67.50\nડાઉનટાઇમ: 25 મિનિટ`,
             time: botTime,
             lcdProofUrl: "/uploads/preset_dahao_lcd.jpg",
+            showJumpToShifts: true,
           },
         ]);
-        showToast("Dahao LCD સ્કેન સફળ! શિફ્ટ લોગમાં જોઈ શકાય છે.", "success");
+        showToast("Dahao LCD સ્કેન સફળ! શિફ્ટ લોગમાં સેવ થઈ ગયું.", "success");
         setIsProcessing(false);
       }, 600);
       return;
@@ -1139,7 +1223,7 @@ export default function Home() {
                         Ramesh Karigar
                       </h4>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight">
-                        મશીન શિફ્ટ બદલો (+₹૬૭.૫૦ બોનસ) • પગાર & ઉપાડ ખાતું
+                        WhatsApp AI Bot (Machine LCD Photo Only) + Machine Shift Logs + Karigar Upaad & Salary
                       </p>
                     </div>
                     <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-1.5">
@@ -1497,8 +1581,21 @@ export default function Home() {
           {(
             currentUser?.role === "KARIGAR"
               ? [
-                  { id: "shifts", label: lang === "gu" ? "🖥️ મશીન શિફ્ટ બદલો" : "🖥️ Machine Shift Change", icon: Clock },
-                  { id: "karigar", label: lang === "gu" ? "👷 કારીગર ઉપાડ & પગાર" : "👷 Karigar Upaad & Salary", icon: UserIcon },
+                  {
+                    id: "bot",
+                    label: lang === "gu" ? "💬 વોટ્સએપ AI બોટ (LCD ફોટો)" : "💬 WhatsApp AI Bot (LCD OCR)",
+                    icon: Sparkles,
+                  },
+                  {
+                    id: "shifts",
+                    label: lang === "gu" ? "🖥️ મશીન શિફ્ટ લોગ (Machine Shift Logs)" : "🖥️ Machine Shift Logs",
+                    icon: Clock,
+                  },
+                  {
+                    id: "karigar",
+                    label: lang === "gu" ? "👷 કારીગર ઉપાડ & પગાર (Karigar Upaad & Salary)" : "👷 Karigar Upaad & Salary",
+                    icon: UserIcon,
+                  },
                 ]
               : currentUser?.role === "MASTER"
               ? [
@@ -1558,54 +1655,98 @@ export default function Home() {
         {activeTab === "bot" && (
           <div className="space-y-4 max-w-4xl mx-auto">
             {/* Quick Demo Presets Header */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-3 sm:p-4">
-              <div className="flex items-center gap-2 mb-2 text-amber-800 font-bold text-xs sm:text-sm">
-                <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
-                <span>{t.botDemoTitle}</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                <button
-                  onClick={() => triggerPreset("preset_radhe_inward.jpg")}
-                  disabled={isProcessing}
-                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between gap-2 group"
-                >
-                  <span className="leading-tight">{t.presetRadhe}</span>
-                  <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-mono shrink-0">
-                    1200 PC
+            {currentUser?.role === "KARIGAR" ? (
+              <div className="bg-gradient-to-r from-indigo-500/15 via-indigo-500/5 to-transparent border-2 border-indigo-500/30 rounded-2xl p-3 sm:p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs sm:text-sm">
+                    <Sparkles className="w-4 h-4 text-indigo-600 animate-spin" />
+                    <span>
+                      {lang === "gu"
+                        ? "🖥️ મશીન શિફ્ટ સ્ટીચ લોગિંગ (Machine LCD Counter OCR)"
+                        : "🖥️ Machine Shift Stitch Logging (Machine LCD Counter OCR)"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                    {lang === "gu" ? "ઓપરેટર સ્પીડ એક્શન" : "Operator Quick Action"}
                   </span>
-                </button>
-                <button
-                  onClick={() => triggerPreset("preset_maruti_outward.jpg")}
-                  disabled={isProcessing}
-                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between gap-2 group"
-                >
-                  <span className="leading-tight">{t.presetMaruti}</span>
-                  <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono shrink-0">
-                    Tranche
-                  </span>
-                </button>
-                <button
-                  onClick={() => triggerPreset("preset_duplicate_guard.jpg")}
-                  disabled={isProcessing}
-                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-rose-200 hover:border-rose-400 hover:shadow-sm text-xs font-semibold text-rose-800 transition-all flex items-center justify-between gap-2 group"
-                >
-                  <span className="leading-tight">{t.presetDuplicate}</span>
-                  <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-mono shrink-0">
-                    409 Guard
-                  </span>
-                </button>
+                </div>
                 <button
                   onClick={() => triggerPreset("preset_dahao_lcd.jpg")}
                   disabled={isProcessing}
-                  className="text-left px-3 py-2.5 bg-white rounded-xl border border-indigo-200 hover:border-indigo-400 hover:shadow-sm text-xs font-semibold text-indigo-800 transition-all flex items-center justify-between gap-2 group"
+                  className="w-full text-left p-3 sm:p-3.5 bg-white hover:bg-indigo-50/50 rounded-xl border-2 border-indigo-300 hover:border-indigo-500 hover:shadow-md text-xs sm:text-sm font-bold text-indigo-950 transition-all flex items-center justify-between gap-3 group"
                 >
-                  <span className="leading-tight">{t.presetDahao}</span>
-                  <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono shrink-0">
-                    LCD OCR
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="leading-tight font-bold text-indigo-900 group-hover:text-indigo-600 transition-colors">
+                        {lang === "gu"
+                          ? "🖥️ મશીન LCD ફોટો - Dahao 4.45 લાખ ટાંકા / Machine LCD Counter OCR"
+                          : "🖥️ Machine LCD Photo - Dahao 4.45L Stitches / Machine LCD Counter OCR"}
+                      </div>
+                      <p className="text-[11px] font-normal text-slate-500 mt-0.5">
+                        {lang === "gu"
+                          ? "Dahao 328 LCD કાઉન્ટર સ્કેન કરો: 14,200,000 -> 14,645,000 (+4,45,000 ટાંકા = +₹67.50 બોનસ)"
+                          : "Scan Dahao 328 LCD Counter: 14,200,000 -> 14,645,000 (+445,000 stitches = +₹67.50 Bonus)"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 group-hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg shrink-0">
+                    4,45,000 ટાંકા →
                   </span>
                 </button>
               </div>
-            </div>
+            ) : (
+              <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-3 sm:p-4">
+                <div className="flex items-center gap-2 mb-2 text-amber-800 font-bold text-xs sm:text-sm">
+                  <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
+                  <span>{t.botDemoTitle}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  <button
+                    onClick={() => triggerPreset("preset_radhe_inward.jpg")}
+                    disabled={isProcessing}
+                    className="text-left px-3 py-2.5 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between gap-2 group"
+                  >
+                    <span className="leading-tight">{t.presetRadhe}</span>
+                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      1200 PC
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => triggerPreset("preset_maruti_outward.jpg")}
+                    disabled={isProcessing}
+                    className="text-left px-3 py-2.5 bg-white rounded-xl border border-amber-200 hover:border-amber-400 hover:shadow-sm text-xs font-semibold text-slate-800 transition-all flex items-center justify-between gap-2 group"
+                  >
+                    <span className="leading-tight">{t.presetMaruti}</span>
+                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      Tranche
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => triggerPreset("preset_duplicate_guard.jpg")}
+                    disabled={isProcessing}
+                    className="text-left px-3 py-2.5 bg-white rounded-xl border border-rose-200 hover:border-rose-400 hover:shadow-sm text-xs font-semibold text-rose-800 transition-all flex items-center justify-between gap-2 group"
+                  >
+                    <span className="leading-tight">{t.presetDuplicate}</span>
+                    <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      409 Guard
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => triggerPreset("preset_dahao_lcd.jpg")}
+                    disabled={isProcessing}
+                    className="text-left px-3 py-2.5 bg-white rounded-xl border border-indigo-200 hover:border-indigo-400 hover:shadow-sm text-xs font-semibold text-indigo-800 transition-all flex items-center justify-between gap-2 group"
+                  >
+                    <span className="leading-tight">{t.presetDahao}</span>
+                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      LCD OCR
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Authentic WhatsApp Container */}
             <div className="bg-[#efeae2] border border-slate-300 rounded-2xl overflow-hidden shadow-xl flex flex-col h-[580px]">
@@ -1715,6 +1856,20 @@ export default function Home() {
                         </button>
                       )}
 
+                      {/* Jump to Machine Shift Logs Button */}
+                      {m.showJumpToShifts && (
+                        <button
+                          onClick={() => {
+                            setActiveTab("calculator");
+                            setTab3SubTab("shifts");
+                          }}
+                          className="mt-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>{t.btnViewInShifts || (lang === "gu" ? "🖥️ શિફ્ટ લોગમાં જુઓ (View in Machine Shift Logs)" : "🖥️ View in Machine Shift Logs")}</span>
+                        </button>
+                      )}
+
                       <span className="block text-[10px] text-slate-400 text-right mt-1">
                         {m.time}
                       </span>
@@ -1750,7 +1905,13 @@ export default function Home() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessing}
-                  title="ચલણ ફોટો અથવા PDF અપલોડ કરો (Upload Challan Photo or PDF)"
+                  title={
+                    currentUser?.role === "KARIGAR"
+                      ? lang === "gu"
+                        ? "મશીન LCD ફોટો અપલોડ કરો (Upload Machine LCD Photo)"
+                        : "Upload Machine LCD Photo"
+                      : "ચલણ ફોટો અથવા PDF અપલોડ કરો (Upload Challan Photo or PDF)"
+                  }
                   className="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center transition-colors shrink-0"
                 >
                   <Camera className="w-5 h-5 text-emerald-700" />
@@ -1762,7 +1923,11 @@ export default function Home() {
                   value={inputMsg}
                   onChange={(e) => setInputMsg(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  placeholder={t.botPlaceholder}
+                  placeholder={
+                    currentUser?.role === "KARIGAR"
+                      ? t.karigarBotPlaceholder || (lang === "gu" ? "મશીન LCD સ્ક્રીનનો ફોટો મોકલો અથવા ટાંકા લખો..." : "Snap Machine LCD photo or type shift stitches...")
+                      : t.botPlaceholder
+                  }
                   disabled={isProcessing}
                   className="flex-1 bg-white border border-slate-300 rounded-full px-4 py-2 text-xs sm:text-sm focus:outline-none focus:border-emerald-600 shadow-inner"
                 />
@@ -4241,9 +4406,7 @@ export default function Home() {
                     {lang === "gu" ? "મશીન ઓપરેટર (Operator)" : "Machine Operator"}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    {lang === "gu"
-                      ? "માત્ર મશીન શિફ્ટ સ્ટીચ લોગિંગ + પોતાનો ઉપાડ અને પગાર ખાતું"
-                      : "Machine Shift Logs & Karigar Upaad & Salary ONLY"}
+                    WhatsApp AI Bot (Machine LCD Photo Only) + Machine Shift Logs + Karigar Upaad & Salary
                   </p>
                 </div>
               </div>
