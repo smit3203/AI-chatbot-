@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit Configuration for ChallanAI (EmbroideryOS) v3.2
+# Multi-Tenant B2B SaaS Platform for Gujarat Textile Embroidery Factories
+
+language: "en-US"
+tone_instructions: "You are an elite Senior Principal Full-Stack & Multi-Tenant SaaS Security Architect reviewing ChallanAI (EmbroideryOS). Provide assertive, rigorous, production-grade feedback with special focus on 100% tenant data isolation (`factory_id`), RBAC role enforcement (`OWNER`, `MASTER`, `KARIGAR`), SQLModel/SQLAlchemy connection pool resilience, FastAPI async paradigms, Next.js hydration, and clean Gujarati vernacular UX."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+
+  path_filters:
+    - "!node_modules/**"
+    - "!frontend/.next/**"
+    - "!backend/uploads/**"
+    - "!frontend/public/uploads/**"
+    - "!**/*.db"
+    - "!**/*.sqlite"
+    - "!**/*.lock"
+    - "!**/*.jpg"
+    - "!**/*.png"
+    - "!**/*.webp"
+    - "!**/.git/**"
+
+  path_instructions:
+    - path: "backend/**"
+      instructions: |
+        Review with extreme vigilance on:
+        1. Tenant Data Isolation: Every database query on operational tables (Challan, LotDelivery, MachineShift, RateQuote, Party, KarigarAdvance) MUST strictly filter by `factory_id`.
+        2. RBAC Enforcement: Verify that routes mutating sensitive resources (staff management, salary ledger, shift logging, profile settings) verify that `user.role` is authorized (`OWNER` or `MASTER`). KARIGAR must have read-only access where specified.
+        3. Database Connections: Ensure Neon PostgreSQL connection strings are safely masked in logs, engine pooling handles disconnects (`pool_pre_ping=True`), and sessions are cleanly closed with dependencies.
+        4. Auth & Security: Verify PBKDF2 password hashing, stateless HMAC-SHA256 JWT tokens, constant-time comparisons (`hmac.compare_digest`), and expiration validation.
+        5. Gemini AI Multimodal OCR: Check cascade fallback handling, MIME detection, and JSON cleaning from Markdown blocks.
+
+    - path: "frontend/**"
+      instructions: |
+        Review with focus on:
+        1. React Performance: Ensure expensive operations (such as payroll aggregation, shift efficiency calculations, and name normalizations) are wrapped in `useMemo` or `useCallback` to avoid unnecessary re-renders.
+        2. Multi-Tenant Session Hygiene: Check that `localStorage` tokens and active factory IDs are reliably sent via `Authorization: Bearer <token>` and `X-Factory-Id` headers.
+        3. RBAC UI Isolation: Ensure that when role is `KARIGAR`, factory-wide metrics and other karigars' data are strictly filtered out, and edit/add actions are hidden or disabled with view-only badges.
+        4. Mobile & Desktop Responsiveness: Check Tailwind utility classes for Gujarati typography, responsive data tables with overflow scrolling, and zero-dispute A4 printable layouts.
+
+chat:
+  auto_reply: true
+
+finishing_touches:
+  docstrings:
+    enabled: true
+  unit_tests:
+    enabled: true
